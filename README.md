@@ -40,23 +40,19 @@ python pypda.py [seq|pdb] [command] [options]
 ### 序列分析示例
 1. 获取蛋白质序列和结构域信息：
 ```
-python pypda.py seq fetch --input_file genes.txt 
---output_dir seq_output
+python pypda.py seq fetch --input_file genes.txt --output_dir seq_output
 ```
 2. 提取序列片段（从10到100位）：
 ```
-python pypda.py seq extract --fasta_file protein.fasta 
---start 10 --end 100
+python pypda.py seq extract --fasta_file protein.fasta --start 10 --end 100
 ```
 3. 序列突变（在位置5和15分别突变为A和K）：
 ```
-python pypda.py seq mutate --fasta_file protein.fasta --pos 
-5 15 --aa A K
+python pypda.py seq mutate --fasta_file protein.fasta --pos 5 15 --aa A K
 ```
 4. 多序列比对：
 ```
-python pypda.py seq align --fasta_files protein1.fasta 
-protein2.fasta
+python pypda.py seq align --fasta_files protein1.fasta protein2.fasta
 ```
 ### PDB分析示例
 ```
