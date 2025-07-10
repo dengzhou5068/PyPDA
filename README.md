@@ -1,116 +1,71 @@
-# Pypda: 蛋白质分析综合工具
+# Python Protein Data Analysis 工具说明
+## 项目概述
+pypda.py是一个综合性的蛋白质分析工具，整合了序列分析和PDB结构分析功能，能够帮助研究人员快速获取蛋白质序列、分析结构域、进行序列突变和比对，以及提取PDB文件中的配体信息。
 
-Pypda是一个功能强大的蛋白质分析工具，集成了序列处理和PDB文件分析功能，帮助研究人员高效处理蛋白质数据。
-
-## 功能特点
-
-- **序列处理**：批量获取蛋白质序列、提取结构域、执行序列突变、多序列比对
-- **PDB分析**：获取PDB ID、下载PDB文件、提取配体信息、处理配体数据
-- **统一配置管理**：通过配置文件管理API和路径信息
-- **并行处理**：支持多线程下载和处理，提高效率
-
-## 安装说明
-
-### 前提条件
-
-- Python 3.7+
-- 依赖库：biopython, requests
-
-### 安装步骤
-
-1. 克隆或下载项目到本地
-2. 安装依赖：
-   ```bash
-   pip install biopython requests
-   ```
-
-## 使用方法
-
-### 命令行接口
-
-Pypda提供两个主要工具：`seq`（序列处理）和`pdb`（PDB分析）。
-
-#### 序列处理工具 (`seq`)
-
-```bash
-python pypda.py seq <command> [options]
-```
-
-可用命令：
-
-1. **fetch**: 批量获取蛋白质序列和结构域信息
-   ```bash
-   python pypda.py seq fetch <input_file> <output_dir>
-   ```
-   - `input_file`: 包含HGNC基因名称的文本文件（每行一个基因）
-   - `output_dir`: 输出目录，默认值为"protein_sequences"
-
-2. **extract**: 提取序列的指定区域
-   ```bash
-   python pypda.py seq extract <fasta_file> <start> <end>
-   ```
-   - `fasta_file`: 输入FASTA文件路径
-   - `start`: 起始位置（1-based）
-   - `end`: 结束位置（1-based）
-
-3. **mutate**: 执行蛋白质序列突变
-   ```bash
-   python pypda.py seq mutate <fasta_file> --pos <positions> --aa <amino_acids>
-   ```
-   - `fasta_file`: 输入FASTA文件路径
-   - `--pos`: 突变位置列表（空格分隔）
-   - `--aa`: 新氨基酸列表（空格分隔）
-
-4. **align**: 比较多个序列
-   ```bash
-   python pypda.py seq align <fasta_files>
-   ```
-   - `fasta_files`: 多个FASTA文件路径（空格分隔）
-
-#### PDB分析工具 (`pdb`)
-
-目前PDB工具正在开发中，敬请期待。
-
+## 功能特性
+### 序列分析功能
+- 从UniProt数据库获取蛋白质序列
+- 提取蛋白质结构域信息并保存为Markdown文件
+- 截取蛋白质序列的特定片段
+- 对蛋白质序列进行定点突变
+- 多序列比对并计算同源性百分比
+### PDB结构分析功能
+- 从UniProt ID获取相关的PDB ID
+- 下载PDB文件（mmCIF格式）
+- 提取PDB文件中的配体信息
+- 分离包含配体和不包含配体的PDB文件
+- 下载配体的化学信息（JSON格式）
+- 生成配体信息汇总（Markdown格式）
+- 提取配体坐标并保存为单独的CIF文件
+## 安装要求
+- Python 3.x
+- 依赖库：BioPython, requests, configparser
 ## 配置文件
+项目需要以下配置文件：
 
-项目使用以下配置文件：
-
-- `seq_config.ini`: 序列处理相关配置
-- `pdb_config.ini`: PDB分析相关配置
-- `exclude_residues.ini`: 排除残基配置
-
-## 示例
-
-### 获取蛋白质序列和结构域信息
-
-```bash
-# 创建包含基因名称的文件
-echo -e "BRD4\nPCSK9" > genes.txt
-
-# 批量获取序列和结构域信息
-python pypda.py seq fetch genes.txt brd4_pcsk9_sequences
+1. seq_config.ini ：序列分析相关配置
+   
+   - UNIPROT_API：UniProt API地址
+   - UNIPROT_XML_API：UniProt XML格式API地址
+   - XML_NAMESPACES：XML命名空间配置
+2. pdb_config.ini ：PDB分析相关配置
+   
+   - 包含任务特定的输出目录和UniProt ID
+3. exclude_residues.ini ：需要排除的残基配置
+## 使用方法
+### 命令行格式
 ```
-
-### 提取序列区域
-
-```bash
-python pypda.py seq extract brd4_pcsk9_sequences/BRD4.fasta 58 457
+python pypda.py [seq|pdb] [command] [options]
 ```
-
-### 执行序列突变
-
-```bash
-python pypda.py seq mutate BRD4.fasta --pos 10 20 --aa A F
+### 序列分析示例
+1. 获取蛋白质序列和结构域信息：
 ```
-
-### 多序列比对
-
-```bash
-python pypda.py seq align BRD4.fasta PCSK9.fasta
+python pypda.py seq fetch --input_file genes.txt --output_dir seq_output
 ```
-
-## 依赖项
-
-- biopython: 用于生物信息学分析
-- requests: 用于HTTP请求
-- configparser: 用于配置文件解析
+2. 提取序列片段（从10到100位）：
+```
+python pypda.py seq extract --fasta_file protein.fasta --start 10 --end 100
+```
+3. 序列突变（在位置5和15分别突变为A和K）：
+```
+python pypda.py seq mutate --fasta_file protein.fasta --pos 5 15 --aa A K
+```
+4. 多序列比对：
+```
+python pypda.py seq align --fasta_files protein1.fasta protein2.fasta
+```
+### PDB分析示例
+```
+python pypda.py pdb
+```
+## 输出文件说明
+- 序列分析：FASTA文件、结构域信息Markdown文件
+- PDB分析：
+  - 配体信息：pdb_ligand.md
+  - 化学组件信息：chemical_components_info.md
+  - 分类文件：with_ligands/和no_ligand/目录
+  - 配体坐标文件：ligands/目录下的CIF文件
+## 注意事项
+- 确保配置文件路径正确
+- 网络连接稳定以保证成功下载数据
+- 大型PDB文件可能需要较长处理时间
