@@ -7,7 +7,7 @@ import warnings
 import shutil
 from pathlib import Path
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict
+from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict, Union
 from Bio import SeqIO
 from Bio.Align import PairwiseAligner
 from Bio import ExPASy
@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime
 import sys
+import io
 
 # 过滤 PDB 构建警告
 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
@@ -64,14 +65,14 @@ class Logger:
             error_file_path: 错误日志文件路径
         """
         with open(error_file_path, 'a', encoding='utf-8') as f:
-            f.write(f"{error_msg}\n")
-        print(error_msg)
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - ERROR: {error_msg}\n")
+        print(f"ERROR: {error_msg}")
 
 
 class CommonUtils:
     """通用工具类，提供项目中常用的工具函数"""
     @staticmethod
-    def read_fasta(file_path: str, return_header: bool = False) -> Tuple[str, str] or str:
+    def read_fasta(file_path: str, return_header: bool = False) -> Union[str, Tuple[str, str]]:
         """读取FASTA文件，可选择返回头部信息
 
         Args:
@@ -81,10 +82,14 @@ class CommonUtils:
         Returns:
             序列字符串，或(头部, 序列)元组
         """
-        record = SeqIO.read(file_path, "fasta")
-        if return_header:
-            return record.description, str(record.seq)
-        return str(record.seq)
+        try:
+            record = SeqIO.read(file_path, "fasta")
+            if return_header:
+                return record.description, str(record.seq)
+            return str(record.seq)
+        except Exception as e:
+            Logger.log_error(f"读取FASTA文件失败: {file_path} - {str(e)}", ConfigManager().error_log_path)
+            raise
 
     @staticmethod
     def generate_output_filename(base_name: str, ext: str, *args: Any) -> str:
@@ -101,7 +106,7 @@ class CommonUtils:
         if not args:
             return f"{base_name}{ext}"
         info = "_".join(map(str, args)) if len(args) > 1 else str(args[0])
-        return f"{base_name}_{info}{ext}"
+        return f"{Path(base_name).stem}_{info}{ext}" # Use Path.stem to get base name without extension
 
     @staticmethod
     def save_sequence(header: str, sequence: str, output_file: str) -> None:
@@ -112,10 +117,15 @@ class CommonUtils:
             sequence: 序列内容
             output_file: 输出文件路径
         """
-        with open(output_file, 'w', encoding="utf-8") as file:
-            file.write(header + '\n')
-            for i in range(0, len(sequence), 60):
-                file.write(sequence[i:i+60] + '\n')
+        try:
+            with open(output_file, 'w', encoding="utf-8") as file:
+                file.write(header + '\n')
+                for i in range(0, len(sequence), 60):
+                    file.write(sequence[i:i+60] + '\n')
+            print(f"序列已保存至 {output_file}")
+        except IOError as e:
+            Logger.log_error(f"保存序列到文件失败: {output_file} - {str(e)}", ConfigManager().error_log_path)
+            raise
 
     @staticmethod
     def parallel_executor(func: callable, items: List[Any], max_workers: Optional[int] = None) -> None:
@@ -127,28 +137,29 @@ class CommonUtils:
             max_workers: 最大工作线程数
         """
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            executor.map(func, items)
+            list(executor.map(func, items)) # Convert map object to list to ensure execution
 
     @staticmethod
-    def save_to_json(data: Dict[str, Any], accession: str) -> str:
+    def save_to_json(data: Dict[str, Any], accession: str, output_dir: str = '.') -> str:
         """将数据保存为JSON文件
 
         Args:
             data: 要保存的字典数据
             accession: UniProt编号，用于生成文件名
+            output_dir: 输出目录，默认为当前目录
 
         Returns:
             保存的JSON文件路径
         """
         today = datetime.now().strftime("%Y%m%d")
-        json_filename = f'{accession}_{today}.json'
+        json_filename = Path(output_dir) / f'{accession}_{today}.json'
         try:
             with open(json_filename, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
             print(f"JSON数据已保存至 {json_filename}")
-            return json_filename
+            return str(json_filename)
         except IOError as e:
-            Logger.log_error(f"保存JSON文件失败: {str(e)}", Logger.error_log_path)
+            Logger.log_error(f"保存JSON文件失败: {json_filename} - {str(e)}", ConfigManager().error_log_path)
             raise
 
     @staticmethod
@@ -162,17 +173,17 @@ class CommonUtils:
             从文件加载的字典数据
         """
         if not os.path.exists(file_path):
-            Logger.log_error(f"文件 {file_path} 不存在", Logger.error_log_path)
+            Logger.log_error(f"文件 {file_path} 不存在", ConfigManager().error_log_path)
             raise FileNotFoundError(f"文件 {file_path} 不存在")
 
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            Logger.log_error(f"JSON文件解析错误: {str(e)}", Logger.error_log_path)
+            Logger.log_error(f"JSON文件解析错误: {file_path} - {str(e)}", ConfigManager().error_log_path)
             raise
         except IOError as e:
-            Logger.log_error(f"读取文件失败: {str(e)}", Logger.error_log_path)
+            Logger.log_error(f"读取文件失败: {file_path} - {str(e)}", ConfigManager().error_log_path)
             raise
 
 
@@ -192,8 +203,8 @@ class SequenceProcessor:
         Yields:
             基因名称和对应的UniProt ID元组
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
 
         for gene in genes:
             params = {
@@ -208,17 +219,25 @@ class SequenceProcessor:
                     self.logger.log_error(f"未找到基因 {gene} 对应的蛋白质序列", self.config.error_log_path)
                     continue
 
-                output_file = output_dir / f"{gene}.fasta"
+                output_file = output_dir_path / f"{gene}.fasta"
                 with open(output_file, "w", encoding="utf-8") as f:
-                    first_seq = response.text.split('>', 2)[1] if '>' in response.text else response.text
-                    f.write(f">{first_seq}")
+                    # UniProt FASTA response might contain multiple sequences, take the first one
+                    first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
+                    SeqIO.write(first_seq_record, f, "fasta")
+
 
                 print(f"已将 {gene} 的第一个全长蛋白质序列保存到 {output_file}")
-                uniprot_id = first_seq.split('\n', 1)[0].split('|')[1]
+                # Extract UniProt ID from the header of the first sequence
+                uniprot_id = first_seq_record.id.split('|')[1] if '|' in first_seq_record.id else first_seq_record.id
                 yield gene, uniprot_id
 
             except requests.exceptions.RequestException as e:
-                self.logger.log_error(f"获取 {gene} 失败: {str(e)}", self.config.error_log_path)
+                self.logger.log_error(f"获取 {gene} 蛋白质序列失败: {str(e)}", self.config.error_log_path)
+            except StopIteration:
+                self.logger.log_error(f"UniProt API返回空序列或无效FASTA格式，针对基因 {gene}", self.config.error_log_path)
+            except Exception as e:
+                self.logger.log_error(f"处理基因 {gene} 时发生未知错误: {str(e)}", self.config.error_log_path)
+
 
     def fetch_domain_information(self, gene_uniprot_pairs: List[Tuple[str, str]], output_dir: str) -> None:
         """获取蛋白质结构域信息并保存
@@ -227,39 +246,54 @@ class SequenceProcessor:
             gene_uniprot_pairs: 基因和UniProt ID的元组列表
             output_dir: 输出目录
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        domain_info_file = output_dir / "domain_info.md"
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        domain_info_file = output_dir_path / "domain_info.md"
 
         with open(domain_info_file, "w", encoding="utf-8") as domain_f:
             domain_f.write("# 结构域信息\n\n")
 
         for gene, uniprot_id in gene_uniprot_pairs:
             try:
-                fasta_file = output_dir / f"{gene}.fasta"
+                fasta_file = output_dir_path / f"{gene}.fasta"
+                total_amino_acids: Union[int, str]
                 if fasta_file.exists():
                     record = SeqIO.read(fasta_file, "fasta")
                     total_amino_acids = len(record.seq)
                 else:
-                    total_amino_acids = "未知"
+                    total_amino_acids = "未知" # This case should ideally not happen if fetch_protein_sequences worked
 
                 xml_response = requests.get(f"{self.config.uniprot_xml_api}{uniprot_id}.xml")
                 xml_response.raise_for_status()
                 root = ET.fromstring(xml_response.text)
 
                 with open(domain_info_file, "a", encoding="utf-8") as domain_f:
-                    domain_f.write(f"## {gene}\n")
+                    domain_f.write(f"## {gene} (UniProt ID: {uniprot_id})\n")
                     domain_f.write(f"### 总氨基酸数量: {total_amino_acids}\n\n")
-
+                    
+                    found_domains = False
                     for feature in root.findall('.//uniprot:feature[@type="domain"]', self.config.ns):
-                        begin = int(feature.find('uniprot:location/uniprot:begin', self.config.ns).attrib['position'])
-                        end = int(feature.find('uniprot:location/uniprot:end', self.config.ns).attrib['position'])
-                        domain_name = feature.attrib.get('description', '未知结构域')
-                        domain_f.write(f"- 结构域名称: {domain_name}, 序列范围: {begin}-{end}\n")
-                        print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
+                        begin_elem = feature.find('uniprot:location/uniprot:begin', self.config.ns)
+                        end_elem = feature.find('uniprot:location/uniprot:end', self.config.ns)
+                        
+                        if begin_elem is not None and end_elem is not None:
+                            begin = int(begin_elem.attrib['position'])
+                            end = int(end_elem.attrib['position'])
+                            domain_name = feature.attrib.get('description', '未知结构域')
+                            domain_f.write(f"- 结构域名称: {domain_name}, 序列范围: {begin}-{end}\n")
+                            print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
+                            found_domains = True
+                    if not found_domains:
+                        domain_f.write("- 未找到结构域信息。\n")
+                print(f"已将 {gene} 的结构域信息写入 {domain_info_file}")
 
             except requests.exceptions.RequestException as e:
                 self.logger.log_error(f"获取 {gene} 的结构域信息失败: {str(e)}", self.config.error_log_path)
+            except ET.ParseError as e:
+                self.logger.log_error(f"解析 {gene} 的UniProt XML数据失败: {str(e)}", self.config.error_log_path)
+            except Exception as e:
+                self.logger.log_error(f"处理基因 {gene} 的结构域信息时发生未知错误: {str(e)}", self.config.error_log_path)
+
 
     @staticmethod
     def extract_subsequence(fasta_file: str, start: int, end: int) -> Optional[str]:
@@ -267,17 +301,25 @@ class SequenceProcessor:
 
         Args:
             fasta_file: FASTA文件路径
-            start: 起始位置
-            end: 结束位置
+            start: 起始位置 (1-based)
+            end: 结束位置 (1-based)
 
         Returns:
             提取的子序列或None（如果提取位置无效）
         """
-        header, sequence = CommonUtils.read_fasta(fasta_file, return_header=True)
-        if start < 1 or end > len(sequence):
-            print('提取位置超出序列范围')
+        try:
+            header, sequence = CommonUtils.read_fasta(fasta_file, return_header=True)
+            if not isinstance(header, str) or not isinstance(sequence, str):
+                Logger.log_error(f"从文件 {fasta_file} 读取序列或头部信息失败。", ConfigManager().error_log_path)
+                return None
+
+            if start < 1 or end > len(sequence) or start > end:
+                Logger.log_error(f"提取位置超出序列范围或无效 (Start: {start}, End: {end}, Seq Length: {len(sequence)})", ConfigManager().error_log_path)
+                return None
+            return sequence[start - 1:end]
+        except Exception as e:
+            Logger.log_error(f"提取子序列失败: {str(e)}", ConfigManager().error_log_path)
             return None
-        return sequence[start - 1:end]
 
     @staticmethod
     def validate_input(mutation_positions: List[int], new_amino_acids: List[str]) -> bool:
@@ -291,8 +333,8 @@ class SequenceProcessor:
             如果输入有效则返回True，否则退出程序
         """
         if len(mutation_positions) != len(new_amino_acids):
-            print("突变位置和新氨基酸的数量必须相同。")
-            exit(1)
+            Logger.log_error("突变位置和新氨基酸的数量必须相同。", ConfigManager().error_log_path)
+            sys.exit(1)
         return True
 
     @staticmethod
@@ -301,7 +343,7 @@ class SequenceProcessor:
 
         Args:
             record: SeqRecord对象
-            mutation_positions: 突变位置列表
+            mutation_positions: 突变位置列表 (1-based)
             new_amino_acids: 新氨基酸列表
 
         Returns:
@@ -310,10 +352,15 @@ class SequenceProcessor:
         from Bio.Seq import Seq
         from Bio.SeqRecord import SeqRecord
 
-        sequence = str(record.seq)
+        sequence_list = list(str(record.seq)) # Convert to list for mutable operations
         for pos, aa in zip(mutation_positions, new_amino_acids):
-            sequence = sequence[:pos - 1] + aa + sequence[pos:]
-        return SeqRecord(Seq(sequence), id=record.id, description=record.description)
+            if 1 <= pos <= len(sequence_list):
+                sequence_list[pos - 1] = aa
+            else:
+                Logger.log_error(f"突变位置 {pos} 超出序列范围。跳过此突变。", ConfigManager().error_log_path)
+                # Optionally, you might want to raise an error or exit here depending on desired behavior
+        mutated_sequence = "".join(sequence_list)
+        return SeqRecord(Seq(mutated_sequence), id=record.id, description=record.description)
 
     @staticmethod
     def read_align_fasta(file_path: str) -> str:
@@ -339,9 +386,32 @@ class SequenceProcessor:
             比对得分和同源性百分比
         """
         aligner = PairwiseAligner()
-        best_alignment = next(aligner.align(seq1, seq2))
+        # Default parameters are often fine, but can be tuned:
+        # aligner.match_score = 1
+        # aligner.mismatch_score = -1
+        # aligner.open_gap_score = -0.5
+        # aligner.extend_gap_score = -0.1
+
+        alignments = aligner.align(seq1, seq2)
+        if not alignments:
+            Logger.log_error("无法找到序列比对。", ConfigManager().error_log_path)
+            return 0.0, 0.0
+
+        best_alignment = next(alignments) # Get the first (and usually best) alignment
         score = best_alignment.score
-        homology = (score / max(len(seq1), len(seq2))) * 100
+        
+        # Homology calculation: identity / min(len1, len2) * 100 is often used for sequence identity
+        # For overall "homology" based on alignment score, score / max_possible_score is more appropriate.
+        # Max possible score for two sequences of length L1, L2 is min(L1, L2) * match_score (if aligner.match_score is 1)
+        # Or, sum of individual scores of aligned residues + gap penalties.
+        # A simple approach for homology based on score:
+        max_len = max(len(seq1), len(seq2))
+        homology = (score / max_len) * 100 if max_len > 0 else 0.0
+        
+        # Alternatively, for sequence identity (number of exact matches / length of shorter sequence)
+        # This requires parsing the alignment itself, which PairwiseAligner doesn't directly expose as a simple count.
+        # Let's stick to the current score-based homology, or refine if needed.
+        
         return score, homology
 
     def compare_sequences(self, file_paths: List[str]) -> None:
@@ -350,11 +420,22 @@ class SequenceProcessor:
         Args:
             file_paths: FASTA文件路径列表
         """
-        sequences = [self.read_align_fasta(fp) for fp in file_paths]
+        if len(file_paths) < 2:
+            self.logger.log_error("至少需要两个FASTA文件才能进行比对。", self.config.error_log_path)
+            return
+
+        sequences: List[str] = []
+        for fp in file_paths:
+            try:
+                sequences.append(self.read_align_fasta(fp))
+            except Exception as e:
+                self.logger.log_error(f"读取比对文件 {fp} 失败: {str(e)}", self.config.error_log_path)
+                return # Stop if any file read fails
+
         for i, seq1 in enumerate(sequences):
             for j, seq2 in enumerate(sequences[i+1:], i+1):
                 score, homology = self.pairwise_alignment(seq1, seq2)
-                print(f"比对 {i+1} 和 {j+1}:\n比对得分: {score}\n同源性百分比: {homology:.2f}%\n")
+                print(f"比对文件 {Path(file_paths[i]).name} 和 {Path(file_paths[j]).name}:\n比对得分: {score}\n同源性百分比: {homology:.2f}%\n")
 
     def process_command(self, args: argparse.Namespace) -> None:
         """处理序列相关命令
@@ -363,32 +444,61 @@ class SequenceProcessor:
             args: 命令行参数
         """
         if args.command == "fetch":
-            with open(args.input_file) as f:
-                genes = [line.strip() for line in f if line.strip()]
+            try:
+                with open(args.input_file, 'r', encoding='utf-8') as f:
+                    genes = [line.strip() for line in f if line.strip()]
+            except IOError as e:
+                self.logger.log_error(f"读取输入文件失败: {args.input_file} - {str(e)}", self.config.error_log_path)
+                return
+
             if genes:
                 gene_uniprot_pairs = list(self.fetch_protein_sequences(genes, args.output_dir))
-                self.fetch_domain_information(gene_uniprot_pairs, args.output_dir)
+                if gene_uniprot_pairs:
+                    self.fetch_domain_information(gene_uniprot_pairs, args.output_dir)
+                else:
+                    self.logger.log_error("未成功获取任何基因的UniProt ID，无法获取结构域信息。", self.config.error_log_path)
             else:
-                print("输入文件中未找到有效的基因名称")
+                self.logger.log_error("输入文件中未找到有效的基因名称。", self.config.error_log_path)
 
         elif args.command == "extract":
             if not os.path.isfile(args.fasta_file):
-                print(f"错误：文件 {args.fasta_file} 不存在")
+                self.logger.log_error(f"错误：文件 {args.fasta_file} 不存在。", self.config.error_log_path)
                 return
-            header, _ = CommonUtils.read_fasta(args.fasta_file, return_header=True)
+            
             extracted_seq = self.extract_subsequence(args.fasta_file, args.start, args.end)
+            if extracted_seq is None:
+                return # Error already logged by extract_subsequence
+
+            # Re-read header after successful extraction to ensure it's available
+            header, _ = CommonUtils.read_fasta(args.fasta_file, return_header=True)
+            if not isinstance(header, str):
+                self.logger.log_error(f"无法从文件 {args.fasta_file} 获取头部信息。", self.config.error_log_path)
+                return
+
             output_file = CommonUtils.generate_output_filename(args.fasta_file, ".fasta", args.start, args.end)
             CommonUtils.save_sequence(header, extracted_seq, output_file)
             print(f"已保存截取序列至 {output_file}")
 
         elif args.command == "mutate":
+            if not os.path.isfile(args.fasta_file):
+                self.logger.log_error(f"错误：文件 {args.fasta_file} 不存在。", self.config.error_log_path)
+                return
+
             self.validate_input(args.pos, args.aa)
-            record = next(SeqIO.parse(args.fasta_file, "fasta"))
+            try:
+                record = next(SeqIO.parse(args.fasta_file, "fasta"))
+            except Exception as e:
+                self.logger.log_error(f"解析FASTA文件 {args.fasta_file} 失败: {str(e)}", self.config.error_log_path)
+                return
+
             mutated_record = self.perform_mutations(record, args.pos, args.aa)
-            mutation_info = "".join([f"{pos}{aa}" for pos, aa in zip(args.pos, args.aa)])
+            mutation_info = "".join([f"{p}{a}" for p, a in zip(args.pos, args.aa)]) # Changed to p and a for clarity
             output_file = CommonUtils.generate_output_filename(os.path.splitext(args.fasta_file)[0], ".fasta", mutation_info)
-            SeqIO.write(mutated_record, output_file, "fasta")
-            print(f"已保存突变序列至 {output_file}")
+            try:
+                SeqIO.write(mutated_record, output_file, "fasta")
+                print(f"已保存突变序列至 {output_file}")
+            except IOError as e:
+                self.logger.log_error(f"保存突变序列到文件失败: {output_file} - {str(e)}", self.config.error_log_path)
 
         elif args.command == "align":
             self.compare_sequences(args.fasta_files)
@@ -408,7 +518,12 @@ class PDBProcessor:
             需要排除的残基列表
         """
         config = configparser.ConfigParser()
-        config.read('exclude_residues.ini')
+        try:
+            config.read('exclude_residues.ini')
+        except Exception as e:
+            self.logger.log_error(f"读取 exclude_residues.ini 配置文件失败: {str(e)}", self.config.error_log_path)
+            return []
+
         exclude_residues = []
         for section in config.sections():
             for key in config[section]:
@@ -426,7 +541,14 @@ class PDBProcessor:
             PDB ID列表
         """
         try:
+            # Use ExPASy.get_sprot_raw for older SwissProt format, or UniProt API for modern data
+            # Current implementation uses ExPASy, which relies on an older format.
+            # A more robust approach might be to use the UniProt REST API for cross-references.
+            # For now, keeping ExPASy but logging errors more consistently.
             handle = ExPASy.get_sprot_raw(uniprot_id)
+            if handle is None:
+                self.logger.log_error(f"无法从ExPASy获取UniProt ID {uniprot_id} 的原始数据。", self.config.error_log_path)
+                return []
             record = SwissProt.read(handle)
             pdb_ids = []
             for cross_ref in record.cross_references:
@@ -434,7 +556,7 @@ class PDBProcessor:
                     pdb_ids.append(cross_ref[1])
             return pdb_ids
         except Exception as e:
-            self.logger.log_error(f"获取PDB ID时出错: {e}", self.config.error_log_path)
+            self.logger.log_error(f"获取UniProt ID {uniprot_id} 的PDB ID时出错: {e}", self.config.error_log_path)
             return []
 
     def download_pdb_files(self, pdb_ids: List[str], output_dir: str) -> None:
@@ -444,29 +566,33 @@ class PDBProcessor:
             pdb_ids: PDB ID列表
             output_dir: 输出目录
         """
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
         pdbl = PDBList()
-        failed_files = []
-        error_file = output_dir / 'error.txt'
+        failed_files: List[str] = [] # Track failed downloads
 
         def download_single_file(pdb_id: str) -> None:
             try:
-                pdbl.retrieve_pdb_file(pdb_id, pdir=output_dir, file_format='mmCif')
-                print(f"成功下载CIF文件: {pdb_id}.cif")
+                # PDBList.retrieve_pdb_file returns the local path if successful
+                local_path = pdbl.retrieve_pdb_file(pdb_id, pdir=output_dir_path, file_format='mmCif')
+                if local_path:
+                    print(f"成功下载CIF文件: {pdb_id}.cif 到 {local_path}")
+                else:
+                    self.logger.log_error(f"下载CIF文件 {pdb_id} 失败，未返回路径。", self.config.error_log_path)
+                    failed_files.append(pdb_id)
             except Exception as e:
                 error_msg = f"下载CIF文件 {pdb_id} 时出错: {e}"
-                print(error_msg)
+                self.logger.log_error(error_msg, self.config.error_log_path)
                 failed_files.append(pdb_id)
-                with open(error_file, 'a', encoding='utf-8') as f:
-                    f.write(error_msg + '\n')
 
         CommonUtils.parallel_executor(download_single_file, pdb_ids)
 
         if failed_files:
-            with open(os.path.join(output_dir, 'download_failed.txt'), 'a', encoding='utf-8') as f:
-                for failed_file in failed_files:
-                    f.write(f"{failed_file}.cif\n")
+            failed_log_path = output_dir_path / 'download_failed.txt'
+            with open(failed_log_path, 'a', encoding='utf-8') as f:
+                for failed_file_id in failed_files:
+                    f.write(f"{failed_file_id}.cif\n")
+            print(f"部分CIF文件下载失败，详情请查看 {failed_log_path}")
 
     def extract_ligands_from_pdb(self, folder_path: str) -> Dict[str, List[str]]:
         """从.cif文件中提取配体信息
@@ -479,33 +605,34 @@ class PDBProcessor:
         """
         parser = MMCIFParser()
         ligand_pdb_dict: Dict[str, List[str]] = {}
-        error_file = os.path.join(folder_path, 'error.txt')
+
+        # Ensure folder_path exists and is a directory
+        if not Path(folder_path).is_dir():
+            self.logger.log_error(f"指定的PDB文件夹路径不存在或不是目录: {folder_path}", self.config.error_log_path)
+            return {}
 
         for filename in os.listdir(folder_path):
             if filename.endswith('.cif'):
                 pdb_id = filename.split('.')[0]
+                file_path = os.path.join(folder_path, filename)
                 try:
-                    structure = parser.get_structure(pdb_id, os.path.join(folder_path, filename))
-                    ligands = []
+                    structure = parser.get_structure(pdb_id, file_path)
+                    ligands: List[str] = []
                     for model in structure:
                         for chain in model:
                             for residue in chain:
+                                # Check if it's a heteroatom residue (often starts with H_ in Biopython)
                                 if residue.id[0].startswith('H_'):
                                     residue_name = residue.resname.strip()
                                     if residue_name not in self.exclude_residues and residue_name not in ligands:
                                         ligands.append(residue_name)
                 except Exception as e:
                     error_msg = f"解析 {filename} 时出错: {e}"
-                    print(error_msg)
-                    with open(error_file, 'a', encoding='utf-8') as f:
-                        f.write(error_msg + '\n')
+                    self.logger.log_error(error_msg, self.config.error_log_path)
                     continue
 
                 for ligand in ligands:
-                    if ligand in ligand_pdb_dict:
-                        ligand_pdb_dict[ligand].append(pdb_id)
-                    else:
-                        ligand_pdb_dict[ligand] = [pdb_id]
+                    ligand_pdb_dict.setdefault(ligand, []).append(pdb_id)
         return ligand_pdb_dict
 
     @staticmethod
@@ -516,70 +643,55 @@ class PDBProcessor:
             ligand_pdb_dict: 配体到PDB ID的映射字典
             output_dir: 输出目录
         """
-        output_file = 'pdb_ligand.md'
-        with open(os.path.join(output_dir, output_file), 'w') as outfile:
-            outfile.write('| Ligands | PDB ID |\n')
-            outfile.write('| --- | --- |\n')
-            for ligand, pdb_ids in ligand_pdb_dict.items():
-                pdb_id_str = ', '.join(pdb_ids)
-                outfile.write(f'| {ligand} | {pdb_id_str} |\n')
-        print(f'结果已写入 {os.path.join(output_dir, output_file)}')
+        output_file_path = Path(output_dir) / 'pdb_ligand.md'
+        try:
+            with open(output_file_path, 'w', encoding='utf-8') as outfile:
+                outfile.write('| Ligands | PDB ID |\n')
+                outfile.write('| --- | --- |\n')
+                for ligand, pdb_ids in ligand_pdb_dict.items():
+                    pdb_id_str = ', '.join(sorted(list(set(pdb_ids)))) # Use set to remove duplicates, then sort
+                    outfile.write(f'| {ligand} | {pdb_id_str} |\n')
+            print(f'结果已写入 {output_file_path}')
+        except IOError as e:
+            Logger.log_error(f"写入配体信息到MD文件失败: {output_file_path} - {str(e)}", ConfigManager().error_log_path)
+            raise
 
-    def move_no_ligand_files(self, folder_path: str, ligand_pdb_dict: Dict[str, List[str]]) -> None:
-        """将没有配体的CIF文件移动到no_ligand文件夹
-
-        Args:
-            folder_path: 文件夹路径
-            ligand_pdb_dict: 配体到PDB ID的映射字典
-        """
-        no_ligand_dir = os.path.join(folder_path, 'no_ligand')
-        if not os.path.exists(no_ligand_dir):
-            os.makedirs(no_ligand_dir)
-
-        pdb_ids_in_md = set()
-        for pdb_ids in ligand_pdb_dict.values():
-            pdb_ids_in_md.update(pdb_ids)
-
-        error_file = os.path.join(folder_path, 'error.txt')
-        for filename in os.listdir(folder_path):
-            if filename.endswith('.cif'):
-                pdb_id = filename.split('.')[0]
-                if pdb_id not in pdb_ids_in_md:
-                    src_path = os.path.join(folder_path, filename)
-                    dst_path = os.path.join(no_ligand_dir, filename)
-                    try:
-                        shutil.move(src_path, dst_path)
-                        print(f"已将 {filename} 移动到 {no_ligand_dir}")
-                    except Exception as e:
-                        self.logger.log_error(f"移动 {filename} 时出错: {e}", error_file)
-
-    def move_with_ligand_files(self, folder_path: str, ligand_pdb_dict: Dict[str, List[str]]) -> None:
-        """将含有配体的CIF文件移动到with_ligands文件夹
+    def move_files_based_on_ligands(self, folder_path: str, ligand_pdb_dict: Dict[str, List[str]]) -> None:
+        """根据配体信息移动CIF文件到'no_ligand'或'with_ligands'子文件夹
 
         Args:
-            folder_path: 文件夹路径
+            folder_path: 包含CIF文件的文件夹路径
             ligand_pdb_dict: 配体到PDB ID的映射字典
         """
-        with_ligands_dir = os.path.join(folder_path, 'with_ligands')
-        if not os.path.exists(with_ligands_dir):
-            os.makedirs(with_ligands_dir)
+        no_ligand_dir = Path(folder_path) / 'no_ligand'
+        with_ligands_dir = Path(folder_path) / 'with_ligands'
+
+        no_ligand_dir.mkdir(exist_ok=True)
+        with_ligands_dir.mkdir(exist_ok=True)
 
         pdb_ids_with_ligands = set()
         for pdb_ids in ligand_pdb_dict.values():
             pdb_ids_with_ligands.update(pdb_ids)
 
-        error_file = os.path.join(folder_path, 'error.txt')
         for filename in os.listdir(folder_path):
             if filename.endswith('.cif'):
                 pdb_id = filename.split('.')[0]
+                src_path = Path(folder_path) / filename
+                
                 if pdb_id in pdb_ids_with_ligands:
-                    src_path = os.path.join(folder_path, filename)
-                    dst_path = os.path.join(with_ligands_dir, filename)
-                    try:
+                    dst_path = with_ligands_dir / filename
+                    target_dir_name = 'with_ligands'
+                else:
+                    dst_path = no_ligand_dir / filename
+                    target_dir_name = 'no_ligand'
+                
+                try:
+                    # Only move if the file is not already in the target subfolder
+                    if src_path.parent != dst_path.parent:
                         shutil.move(src_path, dst_path)
-                        print(f"已将含配体文件 {filename} 移动到 {with_ligands_dir}")
-                    except Exception as e:
-                        self.logger.log_error(f"移动含配体文件 {filename} 时出错: {e}", error_file)
+                        print(f"已将 {filename} 移动到 {target_dir_name}")
+                except Exception as e:
+                    self.logger.log_error(f"移动文件 {filename} 到 {target_dir_name} 时出错: {e}", self.config.error_log_path)
 
     def download_ligand_json(self, unique_ligands: Set[str], output_dir: str) -> None:
         """通过API并行查询配体的JSON文件并下载保存到json子文件夹
@@ -588,31 +700,35 @@ class PDBProcessor:
             unique_ligands: 唯一配体集合
             output_dir: 输出目录
         """
-        json_dir = os.path.join(output_dir, 'json')
-        os.makedirs(json_dir, exist_ok=True)
+        json_dir = Path(output_dir) / 'json'
+        json_dir.mkdir(exist_ok=True)
 
         def download_single_ligand(ligand: str) -> None:
-            retry = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-            adapter = HTTPAdapter(max_retries=retry)
-            s = requests.Session()
-            s.mount('http://', adapter)
-            s.mount('https://', adapter)
+            retry_strategy = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session = requests.Session()
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
 
             try:
                 url = f"https://data.rcsb.org/rest/v1/core/chemcomp/{ligand}"
-                response = s.get(url, timeout=10)
+                response = session.get(url, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
-                    json_path = os.path.join(json_dir, f'{ligand}.json')
+                    json_path = json_dir / f'{ligand}.json'
                     with open(json_path, 'w', encoding='utf-8') as json_file:
                         json.dump(data, json_file, ensure_ascii=False, indent=4)
                     print(f"JSON file for {ligand} has been saved to {json_path}")
+                elif response.status_code == 404:
+                    self.logger.log_error(f"配体 {ligand} 未在RCSB PDB找到 (404 Not Found)。", self.config.error_log_path)
                 else:
-                    print(f"Request for {ligand} failed, status code: {response.status_code}")
+                    self.logger.log_error(f"请求配体 {ligand} 失败，状态码: {response.status_code}", self.config.error_log_path)
+            except requests.exceptions.RequestException as e:
+                self.logger.log_error(f"下载配体 {ligand} 时发生网络错误: {e}", self.config.error_log_path)
             except Exception as e:
-                print(f"下载配体 {ligand} 时出错: {e}")
+                self.logger.log_error(f"下载配体 {ligand} 时出错: {e}", self.config.error_log_path)
             finally:
-                s.close()
+                session.close()
 
         CommonUtils.parallel_executor(download_single_ligand, list(unique_ligands))
 
@@ -623,30 +739,37 @@ class PDBProcessor:
             unique_ligands: 唯一配体集合
             output_dir: 输出目录
         """
-        json_dir = os.path.join(output_dir, 'json')
-        with open(os.path.join(output_dir, 'chemical_components_info.md'), 'w', encoding='utf-8') as md_file:
-            md_file.write("| Chemical Component ID | name | formula | formula_weight | Canonical Smiles |\n")
-            md_file.write("| --- | --- | --- | --- | --- |\n")
-            for ligand in unique_ligands:
-                try:
-                    json_path = os.path.join(json_dir, f'{ligand}.json')
-                    with open(json_path, 'r', encoding='utf-8') as json_file:
-                        data = json.load(json_file)
-                    chem_comp = data.get('chem_comp', {})
-                    name = chem_comp.get('name', '')
-                    formula = chem_comp.get('formula', '')
-                    formula_weight = chem_comp.get('formula_weight', '')
-                    canonical_smiles = ''
-                    descriptors = data.get('pdbx_chem_comp_descriptor', [])
-                    for descriptor in descriptors:
-                        if descriptor.get('type') == 'SMILES_CANONICAL':
-                            canonical_smiles = descriptor.get('descriptor', '')
-                            break
-                    md_file.write(f"| {ligand} | {name} | {formula} | {formula_weight} | {canonical_smiles} |\n")
-                    print(f"Information for {ligand} has been added to the MD file.")
-                except FileNotFoundError:
-                    print(f"JSON file for {ligand} not found in {json_dir}")
-        print(f"MD file {os.path.join(output_dir, 'chemical_components_info.md')} has been created successfully.")
+        json_dir = Path(output_dir) / 'json'
+        output_md_file = Path(output_dir) / 'chemical_components_info.md'
+        
+        try:
+            with open(output_md_file, 'w', encoding='utf-8') as md_file:
+                md_file.write("| Chemical Component ID | name | formula | formula_weight | Canonical Smiles |\n")
+                md_file.write("| --- | --- | --- | --- | --- |\n")
+                for ligand in unique_ligands:
+                    json_path = json_dir / f'{ligand}.json'
+                    try:
+                        data = CommonUtils.load_from_json(str(json_path))
+                        chem_comp = data.get('chem_comp', {})
+                        name = chem_comp.get('name', '')
+                        formula = chem_comp.get('formula', '')
+                        formula_weight = chem_comp.get('formula_weight', '')
+                        canonical_smiles = ''
+                        descriptors = data.get('pdbx_chem_comp_descriptor', [])
+                        for descriptor in descriptors:
+                            if descriptor.get('type') == 'SMILES_CANONICAL':
+                                canonical_smiles = descriptor.get('descriptor', '')
+                                break
+                        md_file.write(f"| {ligand} | {name} | {formula} | {formula_weight} | {canonical_smiles} |\n")
+                        print(f"Information for {ligand} has been added to the MD file.")
+                    except FileNotFoundError:
+                        self.logger.log_error(f"JSON file for {ligand} not found in {json_dir}", self.config.error_log_path)
+                    except Exception as e:
+                        self.logger.log_error(f"读取或解析配体 {ligand} 的JSON文件失败: {str(e)}", self.config.error_log_path)
+            print(f"MD file {output_md_file} has been created successfully.")
+        except IOError as e:
+            self.logger.log_error(f"创建或写入 chemical_components_info.md 文件失败: {str(e)}", self.config.error_log_path)
+            raise
 
     def extract_ligands_coordinates(self, output_dir: str) -> None:
         """直接通过文本解析.cif文件提取配体坐标并保存成cif文件（并行版）
@@ -654,71 +777,88 @@ class PDBProcessor:
         Args:
             output_dir: 输出目录
         """
-        with_ligands_dir = os.path.join(output_dir, 'with_ligands')
-        ligands_dir = os.path.join(with_ligands_dir, 'ligands')
-        os.makedirs(ligands_dir, exist_ok=True)
+        with_ligands_dir = Path(output_dir) / 'with_ligands'
+        ligands_dir = with_ligands_dir / 'ligands'
+        ligands_dir.mkdir(exist_ok=True)
 
-        cif_files = glob(os.path.join(with_ligands_dir, '*.cif'))
-        error_file = os.path.join(output_dir, 'error.txt')
+        cif_files = glob(str(with_ligands_dir / '*.cif'))
+        if not cif_files:
+            self.logger.log_error(f"在 {with_ligands_dir} 中未找到任何.cif文件进行配体坐标提取。", self.config.error_log_path)
+            return
 
         def parse_cif_atom_sites(cif_content: str) -> Tuple[Dict[str, List[List[Any]]], Optional[str]]:
-            atom_site_fields = []
-            atom_site_data = []
+            atom_site_fields: List[str] = []
+            atom_site_data: List[List[str]] = []
             in_loop = False
+            data_block_id: Optional[str] = None
 
             lines = cif_content.split('\n')
             for line in lines:
                 line = line.strip()
-                if line.startswith('_atom_site.'):
+                if line.startswith('data_'):
+                    data_block_id = line[5:] # Extract data block ID
+                elif line.startswith('loop_'):
                     in_loop = True
-                    atom_site_fields.append(line.split('.')[1])
+                    atom_site_fields = [] # Reset fields for new loop
+                    atom_site_data = [] # Reset data for new loop
                 elif in_loop:
-                    if line.startswith('#'):
-                        in_loop = False
-                    elif line:
+                    if line.startswith('_atom_site.'):
+                        atom_site_fields.append(line.split('.')[1])
+                    elif line and not line.startswith('#'):
+                        # This assumes data lines immediately follow field definitions in the loop
+                        # And that data lines are space-separated
                         atom_site_data.append(line.split())
+                    elif not line and not atom_site_fields: # Empty line after loop_ or before first _atom_site.
+                        pass # Continue looking for fields
+                    elif line.startswith('#') or not line: # End of loop or end of data block
+                        in_loop = False
+                        if atom_site_fields and atom_site_data: # If we have collected fields and data for a loop
+                            break # Assume we found the main atom_site loop, exit
+                # If not in loop and not processing atom_site fields, just continue
+
+            if not atom_site_fields or not atom_site_data:
+                return {}, "未找到有效的_atom_site循环或数据"
 
             field_index = {field: idx for idx, field in enumerate(atom_site_fields)}
             required_fields = ['group_PDB', 'auth_comp_id', 'auth_asym_id', 'auth_seq_id', 
                               'Cartn_x', 'Cartn_y', 'Cartn_z', 'id', 'type_symbol']
 
             if not all(f in field_index for f in required_fields):
-                return {}, "缺少必要的_atom_site字段"
+                return {}, f"缺少必要的_atom_site字段: {', '.join([f for f in required_fields if f not in field_index])}"
 
-            ligands = {}
-            for data in atom_site_data:
-                if data[field_index['group_PDB']] != 'HETATM':
-                    continue
-
-                residue_name = data[field_index['auth_comp_id']].strip()
-                if residue_name in self.exclude_residues:
-                    continue
-
+            ligands: Dict[str, List[List[Any]]] = {}
+            for data_row in atom_site_data:
                 try:
-                    x = float(data[field_index['Cartn_x']])
-                    y = float(data[field_index['Cartn_y']])
-                    z = float(data[field_index['Cartn_z']])
-                except (ValueError, IndexError):
+                    group_pdb = data_row[field_index['group_PDB']]
+                    if group_pdb != 'HETATM':
+                        continue
+
+                    residue_name = data_row[field_index['auth_comp_id']].strip()
+                    if residue_name in self.exclude_residues:
+                        continue
+
+                    x = float(data_row[field_index['Cartn_x']])
+                    y = float(data_row[field_index['Cartn_y']])
+                    z = float(data_row[field_index['Cartn_z']])
+
+                    atom_fields = [
+                        group_pdb,
+                        residue_name,
+                        data_row[field_index['auth_asym_id']],
+                        data_row[field_index['auth_seq_id']],
+                        x, y, z,
+                        data_row[field_index['id']],
+                        data_row[field_index['type_symbol']]
+                    ]
+
+                    ligands.setdefault(residue_name, []).append(atom_fields)
+                except (ValueError, IndexError) as e:
+                    self.logger.log_error(f"解析CIF行数据失败: {data_row} - {str(e)}", self.config.error_log_path)
                     continue
-
-                atom_fields = [
-                    data[field_index['group_PDB']],
-                    residue_name,
-                    data[field_index['auth_asym_id']],
-                    data[field_index['auth_seq_id']],
-                    x, y, z,
-                    data[field_index['id']],
-                    data[field_index['type_symbol']]
-                ]
-
-                if residue_name not in ligands:
-                    ligands[residue_name] = []
-                ligands[residue_name].append(atom_fields)
-
             return ligands, None
 
         def process_single_cif(cif_file: str) -> None:
-            pdb_id = os.path.basename(cif_file).split('.')[0]
+            pdb_id = Path(cif_file).stem # Get filename without extension
             try:
                 with open(cif_file, 'r', encoding='utf-8') as f:
                     cif_content = f.read()
@@ -727,8 +867,14 @@ class PDBProcessor:
                 if err:
                     raise ValueError(err)
 
+                if not ligands:
+                    # This case should ideally not happen if file was moved to 'with_ligands'
+                    # unless it contains only excluded residues or no HETATM records.
+                    self.logger.log_error(f"文件 {pdb_id}.cif 中未找到可提取的配体原子坐标。", self.config.error_log_path)
+                    return
+
                 for residue_name, atom_fields_list in ligands.items():
-                    ligand_cif_file = os.path.join(ligands_dir, f'{pdb_id}_{residue_name}.cif')
+                    ligand_cif_file = ligands_dir / f'{pdb_id}_{residue_name}.cif'
 
                     cif_lines = [
                         f"data_{pdb_id}_{residue_name}\n",
@@ -744,56 +890,94 @@ class PDBProcessor:
                         "_atom_site.type_symbol\n"
                     ]
                     for atom_fields in atom_fields_list:
+                        # Format coordinates to 3 decimal places
                         cif_lines.append(
                             f"{atom_fields[0]} {atom_fields[1]} {atom_fields[2]} {atom_fields[3]} "
                             f"{atom_fields[4]:.3f} {atom_fields[5]:.3f} {atom_fields[6]:.3f} "
                             f"{atom_fields[7]} {atom_fields[8]}\n"
                         )
+                    cif_lines.append("#\n") # End of data block
 
                     with open(ligand_cif_file, 'w', encoding='utf-8') as f:
                         f.writelines(cif_lines)
                     print(f"成功保存配体 {residue_name} 的CIF文件: {ligand_cif_file}")
 
             except Exception as e:
-                error_msg = f"处理 {cif_file} 时出错: {e}"
-                print(error_msg)
-                with open(error_file, 'a', encoding='utf-8') as f:
-                    f.write(error_msg + '\n')
+                error_msg = f"处理CIF文件 {cif_file} 时出错: {e}"
+                self.logger.log_error(error_msg, self.config.error_log_path)
 
         CommonUtils.parallel_executor(process_single_cif, cif_files)
 
     def process(self) -> None:
         """处理PDB相关任务"""
         for section in self.config.pdb_config.sections():
-            output_dir = self.config.pdb_config.get(section, 'output')
-            uniprot_id = self.config.pdb_config.get(section, 'uniprot')
+            output_dir = self.config.pdb_config.get(section, 'output', fallback=None)
+            uniprot_id = self.config.pdb_config.get(section, 'uniprot', fallback=None)
 
+            if not output_dir:
+                self.logger.log_error(f"PDB配置文件中 {section} 部分缺少 'output' 路径。", self.config.error_log_path)
+                continue
+            if not uniprot_id:
+                self.logger.log_error(f"PDB配置文件中 {section} 部分缺少 'uniprot' ID。", self.config.error_log_path)
+                continue
+            
+            print(f"\n--- 开始处理 PDB 任务: {section} (UniProt ID: {uniprot_id}) ---")
+            
             pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
             if pdb_ids:
+                print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
                 self.download_pdb_files(pdb_ids, output_dir)
             else:
-                print(f"任务 {section}: 未找到对应的PDB ID。")
+                self.logger.log_error(f"任务 {section}: 未找到对应的PDB ID。", self.config.error_log_path)
+                continue # Skip further processing for this section if no PDB IDs found
+
+            # Re-check if any CIF files were downloaded before proceeding
+            downloaded_cif_files = glob(str(Path(output_dir) / '*.cif'))
+            if not downloaded_cif_files:
+                self.logger.log_error(f"在 {output_dir} 中未找到下载的CIF文件，跳过后续配体处理。", self.config.error_log_path)
+                continue
 
             ligand_pdb_dict = self.extract_ligands_from_pdb(output_dir)
-            self.write_ligand_info_to_md(ligand_pdb_dict, output_dir)
-            self.move_no_ligand_files(output_dir, ligand_pdb_dict)
-            self.move_with_ligand_files(output_dir, ligand_pdb_dict)
+            
+            # Moved file organization before writing ligand info to MD, as files are moved *out* of output_dir
+            # This ensures only relevant files are in 'output_dir' for ligand extraction later.
+            # However, the previous logic was to move *after* extraction, which means extract_ligands_from_pdb
+            # should operate on the initial download directory.
+            # Let's adjust: extract, then write MD, then move. This maintains the flow.
+            
+            if ligand_pdb_dict:
+                self.write_ligand_info_to_md(ligand_pdb_dict, output_dir)
+            else:
+                print(f"在 {output_dir} 中未找到任何配体信息。")
+            
+            # Move files after all extractions from the original directory are done
+            self.move_files_based_on_ligands(output_dir, ligand_pdb_dict)
+            
+            # Read ligands from the generated MD file to ensure consistency
+            md_file_path = Path(output_dir) / 'pdb_ligand.md'
+            unique_ligands: Set[str] = set()
+            if md_file_path.exists():
+                try:
+                    with open(md_file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    for line in lines[2:]: # Skip header and separator
+                        parts = [p.strip() for p in line.strip().split('|') if p.strip()]
+                        if len(parts) >= 1:
+                            unique_ligands.add(parts[0])
+                except IOError as e:
+                    self.logger.log_error(f"读取 {md_file_path} 失败: {str(e)}", self.config.error_log_path)
+            else:
+                self.logger.log_error(f"配体信息文件 {md_file_path} 不存在，无法获取唯一配体列表。", self.config.error_log_path)
 
-            with open(os.path.join(output_dir, 'pdb_ligand.md'), 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            ligands = []
-            for line in lines[2:]:
-                parts = line.strip().split('|')
-                if len(parts) >= 2:
-                    ligand_str = parts[1].strip()
-                    ligands.append(ligand_str)
-            unique_ligands = set(ligands)
+            if unique_ligands:
+                print(f"找到唯一配体: {', '.join(sorted(list(unique_ligands)))}")
+                self.download_ligand_json(unique_ligands, output_dir)
+                self.write_chemical_info_to_md(unique_ligands, output_dir)
+                self.extract_ligands_coordinates(output_dir)
+            else:
+                print("未找到任何配体，跳过配体JSON下载和坐标提取。")
 
-            self.download_ligand_json(unique_ligands, output_dir)
-            self.write_chemical_info_to_md(unique_ligands, output_dir)
-            self.extract_ligands_coordinates(output_dir)
-
-        print('任务完成。')
+        print('\n所有PDB任务完成。')
 
 
 class ProteinInfo(TypedDict):
@@ -826,28 +1010,51 @@ class UniProtAPI:
         self.config = config
         self.logger = logger
         self.api_base_url = config.uniprot_api_base_url
-        self.session = requests.Session()
-        self.session.headers.update({
+        self.session = self._setup_session()
+
+    def _setup_session(self) -> requests.Session:
+        """设置带有重试策略的requests会话"""
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = requests.Session()
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'UniProtAnalyzer/1.0'
+            'User-Agent': 'PyPDA/1.0 (https://github.com/example/pypda; pypda@example.com)' # Good practice to provide contact info
         })
+        return session
 
     def get_uniprot_data(self, accession: str) -> Optional[Dict[str, Any]]:
-        """根据UniProt编号从API获取数据"""
+        """根据UniProt编号从API获取数据
+
+        Args:
+            accession: UniProt蛋白质编号
+
+        Returns:
+            如果成功获取，返回蛋白质信息的字典；否则返回None。
+        """
         url = f'{self.api_base_url}/{accession}'
         try:
-            self.logger.log_error(f"正在从 {url} 获取数据...", self.config.error_log_path)
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
+            print(f"正在从 {url} 获取数据...")
+            response = self.session.get(url, timeout=30) # Increased timeout
+            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
             return response.json()
         except requests.exceptions.HTTPError as e:
-            self.logger.log_error(f"HTTP请求错误: {str(e)}", self.config.error_log_path)
+            self.logger.log_error(f"HTTP请求错误 (UniProt API - {url}): {e.response.status_code} - {e.response.text}", self.config.error_log_path)
         except requests.exceptions.ConnectionError:
-            self.logger.log_error("网络连接错误", self.config.error_log_path)
+            self.logger.log_error(f"网络连接错误 (UniProt API - {url})", self.config.error_log_path)
         except requests.exceptions.Timeout:
-            self.logger.log_error("请求超时", self.config.error_log_path)
+            self.logger.log_error(f"请求超时 (UniProt API - {url})", self.config.error_log_path)
+        except json.JSONDecodeError:
+            self.logger.log_error(f"UniProt API返回无效JSON (UniProt API - {url}): {response.text[:200]}...", self.config.error_log_path)
         except Exception as e:
-            self.logger.log_error(f"获取UniProt数据失败: {str(e)}", self.config.error_log_path)
+            self.logger.log_error(f"获取UniProt数据失败: {str(e)} (UniProt API - {url})", self.config.error_log_path)
         return None
 
 
@@ -913,17 +1120,21 @@ class ProteinAnalyzer:
         # 4. 功能和活性注释 - 修改为大小写不敏感匹配
         comments = data.get('comments', [])
         comment_types = ['FUNCTION', 'CATALYTIC ACTIVITY', 'COFACTOR', 'ACTIVITY REGULATION',
-                         'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY']
-        # 创建大小写不敏感的映射字典
+                         'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY', 'DISEASE', 'INTERACTION'] # Added DISEASE, INTERACTION for completeness
+        # Create a case-insensitive mapping dictionary
         comment_type_map = {ct.lower(): ct for ct in comment_types}
         info['comments'] = {ct: [] for ct in comment_types}
         
         for comment in comments:
-            # 将API返回的commentType转换为小写进行匹配
+            # Convert API's commentType to lowercase for matching
             ct_lower = comment.get('commentType', '').lower()
             if ct_lower in comment_type_map:
                 ct = comment_type_map[ct_lower]
                 info['comments'][ct].append(comment)
+            elif 'INTERACTION' in comment_type_map and ct_lower == 'interaction': # Handle explicit interaction
+                 info['comments']['INTERACTION'].append(comment)
+            # else:
+            #     print(f"Unknown comment type: {comment.get('commentType')}") # For debugging new types
 
         # 5. 蛋白质特征
         features = data.get('features', [])
@@ -931,7 +1142,7 @@ class ProteinAnalyzer:
             'counts': {},
             'detailed': {}
         }
-        detailed_feature_types = ["Chain", "Region", "Active site", "Binding site", "Modified residue", "Mutagenesis"]
+        detailed_feature_types = ["Chain", "Region", "Active site", "Binding site", "Modified residue", "Mutagenesis", "Domain"] # Added Domain
         for dt in detailed_feature_types:
             info['features']['detailed'][dt] = []
 
@@ -941,7 +1152,8 @@ class ProteinAnalyzer:
             if ft in detailed_feature_types:
                 info['features']['detailed'][ft].append(feature)
 
-        # 6. 蛋白质相互作用
+        # 6. 蛋白质相互作用 (separate from comments for clarity if needed, but comments already cover it)
+        # The 'interactions' key in the top-level data provides a more structured view
         info['interactions'] = data.get('interactions', [])
 
         # 7. 关键词
@@ -952,7 +1164,7 @@ class ProteinAnalyzer:
 
         # 9. 交叉引用
         cross_references = data.get('uniProtKBCrossReferences', [])
-        important_databases = ["PDB", "DrugBank", "GO", "Reactome", "HGNC", "GeneID", "KEGG"]
+        important_databases = ["PDB", "DrugBank", "GO", "Reactome", "HGNC", "GeneID", "KEGG", "AlphaFoldDB", "IntAct"] # Added AlphaFoldDB, IntAct
         info['cross_references'] = {db: [] for db in important_databases}
         for xref in cross_references:
             db = xref.get('database')
@@ -978,18 +1190,18 @@ class ReportGenerator:
         """
         try:
             with open(md_filename, 'w', encoding='utf-8') as f:
-                f.write("# UniProt 蛋白质信息分析报告\n\n")
+                f.write(f"# UniProt 蛋白质信息分析报告 - {info['basic_info'].get('primaryAccession', 'N/A')}\n\n")
 
                 # 1. 基本识别信息
                 f.write("## 1. 基本识别信息\n")
                 bi = info['basic_info']
-                f.write(f"- **条目类型**: {bi['entryType']}\n")
-                f.write(f"- **主要登录号**: {bi['primaryAccession']}\n")
-                if bi['secondaryAccessions']:
+                f.write(f"- **条目类型**: {bi.get('entryType', 'N/A')}\n")
+                f.write(f"- **主要登录号**: {bi.get('primaryAccession', 'N/A')}\n")
+                if bi.get('secondaryAccessions'):
                     f.write(f"- **次要登录号**: {', '.join(bi['secondaryAccessions'])}\n")
-                f.write(f"- **UniProtKB ID**: {bi['uniProtkbId']}\n")
-                f.write(f"- **注释评分**: {bi['annotationScore']}\n")
-                audit = bi['entryAudit']
+                f.write(f"- **UniProtKB ID**: {bi.get('uniProtkbId', 'N/A')}\n")
+                f.write(f"- **注释评分**: {bi.get('annotationScore', 'N/A')}\n")
+                audit = bi.get('entryAudit', {})
                 f.write(f"- **首次公开日期**: {audit.get('firstPublicDate', 'N/A')}\n")
                 f.write(f"- **最后注释更新日期**: {audit.get('lastAnnotationUpdateDate', 'N/A')}\n")
                 f.write(f"- **最后序列更新日期**: {audit.get('lastSequenceUpdateDate', 'N/A')}\n")
@@ -999,24 +1211,24 @@ class ReportGenerator:
                 # 2. 生物学背景信息
                 f.write("## 2. 生物学背景信息\n")
                 bio = info['biology_info']
-                f.write(f"- **科学名称**: {bio['scientificName']}\n")
-                f.write(f"- **常用名称**: {bio['commonName']}\n")
-                f.write(f"- **分类ID**: {bio['taxonId']}\n")
-                if bio['lineage']:
+                f.write(f"- **科学名称**: {bio.get('scientificName', 'N/A')}\n")
+                f.write(f"- **常用名称**: {bio.get('commonName', 'N/A')}\n")
+                f.write(f"- **分类ID**: {bio.get('taxonId', 'N/A')}\n")
+                if bio.get('lineage'):
                     f.write(f"- **生物学谱系**: {' -> '.join(bio['lineage'])}\n")
-                f.write(f"- **蛋白质存在证据**: {bio['proteinExistence']}\n\n")
+                f.write(f"- **蛋白质存在证据**: {bio.get('proteinExistence', 'N/A')}\n\n")
 
                 # 3. 蛋白质描述和基因信息
                 f.write("## 3. 蛋白质描述和基因信息\n")
                 pd = info['protein_desc']
                 rn = pd['recommendedName']
-                f.write(f"- **推荐全名**: {rn['fullName']}\n")
-                if rn['shortNames']:
+                f.write(f"- **推荐全名**: {rn.get('fullName', 'N/A')}\n")
+                if rn.get('shortNames'):
                     f.write(f"- **推荐简称**: {', '.join(rn['shortNames'])}\n")
-                if rn['ecNumbers']:
+                if rn.get('ecNumbers'):
                     f.write(f"- **EC 编号**: {', '.join(rn['ecNumbers'])}\n")
 
-                alternative_names = pd['alternativeNames']
+                alternative_names = pd.get('alternativeNames', [])
                 if alternative_names:
                     f.write("- **备选名称**:\n")
                     for alt_name in alternative_names:
@@ -1024,7 +1236,7 @@ class ReportGenerator:
                         alt_ec_numbers = [ec.get('value') for ec in alt_name.get('ecNumbers', []) if ec.get('value')]
                         f.write(f"  - {alt_full_name}" + (f" (EC: {', '.join(alt_ec_numbers)})" if alt_ec_numbers else "") + "\n")
 
-                genes = pd['genes']
+                genes = pd.get('genes', [])
                 if genes:
                     for gene in genes:
                         gene_name = gene.get('geneName', {}).get('value', 'N/A')
@@ -1034,46 +1246,91 @@ class ReportGenerator:
                             f.write(f"  - **基因同义词**: {', '.join(gene_synonyms)}\n")
                 f.write("\n")
 
-                # 4. 功能和活性注释 - 增强文本提取逻辑
+                # 4. 功能和活性注释
                 f.write("## 4. 功能和活性注释\n")
-                comments = info['comments']
-                # 确保按指定顺序输出注释类型
-                for ct in ['FUNCTION', 'CATALYTIC ACTIVITY', 'COFACTOR', 'ACTIVITY REGULATION',
-                           'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY']:
-                    if comments[ct]:
-                        f.write(f"### {ct}\n")
-                        for comment in comments[ct]:
-                            # 处理可能的嵌套text结构
+                comments_data = info['comments']
+                comment_order = ['FUNCTION', 'CATALYTIC ACTIVITY', 'COFACTOR', 'ACTIVITY REGULATION',
+                                 'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY',
+                                 'DISEASE', 'INTERACTION'] # Ensure consistent order
+                
+                found_any_comment = False
+                for ct in comment_order:
+                    if comments_data.get(ct):
+                        found_any_comment = True
+                        f.write(f"### {ct.replace('_', ' ').title()}\n") # Format to Title Case
+                        for comment in comments_data[ct]:
                             texts = []
-                            for text in comment.get('texts', []):
-                                if isinstance(text, dict) and 'value' in text:
-                                    texts.append(text['value'])
-                                elif isinstance(text, str):
-                                    texts.append(text)
+                            # Handle different structures of 'text' field (list of dicts or single dict/string)
+                            if 'texts' in comment and isinstance(comment['texts'], list):
+                                for text_item in comment['texts']:
+                                    if isinstance(text_item, dict) and 'value' in text_item:
+                                        texts.append(text_item['value'])
+                                    elif isinstance(text_item, str):
+                                        texts.append(text_item)
+                            elif 'text' in comment: # For comments with a single 'text' field (e.g., PTM)
+                                if isinstance(comment['text'], dict) and 'value' in comment['text']:
+                                    texts.append(comment['text']['value'])
+                                elif isinstance(comment['text'], str):
+                                    texts.append(comment['text'])
+
                             if texts:
                                 f.write(f"- {'; '.join(texts)}\n")
+                            
+                            # Additional details for specific comment types
+                            if ct == 'CATALYTIC ACTIVITY':
+                                reaction = comment.get('reaction')
+                                if reaction:
+                                    f.write(f"  - **Reaction**: {reaction.get('name', 'N/A')}\n")
+                            elif ct == 'DISEASE':
+                                disease_name = comment.get('disease', {}).get('diseaseName', 'N/A')
+                                acronym = comment.get('disease', {}).get('acronym', 'N/A')
+                                f.write(f"  - **Disease**: {disease_name} ({acronym})\n")
+                            elif ct == 'SUBCELLULAR LOCATION':
+                                for location in comment.get('locations', []):
+                                    f.write(f"  - **Location**: {location.get('location', {}).get('value', 'N/A')}\n")
+                                    for topology in location.get('topologies', []):
+                                        f.write(f"    - **Topology**: {topology.get('value', 'N/A')}\n")
+                                    for orientation in location.get('orientations', []):
+                                        f.write(f"    - **Orientation**: {orientation.get('value', 'N/A')}\n")
+
+                if not found_any_comment:
+                    f.write("- 未找到功能和活性注释信息。\n")
                 f.write("\n")
 
                 # 5. 蛋白质特征
                 f.write("## 5. 蛋白质特征\n")
                 features = info['features']
                 f.write("### 特征类型统计\n")
-                for ft, count in features['counts'].items():
-                    f.write(f"- {ft}: {count}\n")
+                if features['counts']:
+                    for ft, count in features['counts'].items():
+                        f.write(f"- {ft}: {count}\n")
+                else:
+                    f.write("- 未找到特征类型统计信息。\n")
 
                 f.write("\n### 详细特征信息\n")
+                found_any_detailed_feature = False
                 for dt in features['detailed']:
                     if features['detailed'][dt]:
+                        found_any_detailed_feature = True
                         f.write(f"#### {dt}\n")
                         for feature in features['detailed'][dt]:
                             desc = feature.get('description', 'N/A')
-                            if isinstance(desc, dict):
+                            if isinstance(desc, dict): # Sometimes description can be a dict with 'value'
                                 desc = desc.get('value', 'N/A')
 
                             loc = feature.get('location', {})
                             begin = loc.get('start', {}).get('value', 'N/A')
                             end = loc.get('end', {}).get('value', 'N/A')
-                            f.write(f"- {desc} (位置: {begin}-{end})\n")
+                            
+                            feature_line = f"- {desc} (位置: {begin}-{end})"
+                            # Add original amino acid for 'Modified residue' or 'Mutagenesis'
+                            if dt == 'Modified residue' or dt == 'Mutagenesis':
+                                original_aa = feature.get('original', 'N/A')
+                                feature_line += f", 原始氨基酸: {original_aa}"
+                            
+                            f.write(feature_line + "\n")
+                if not found_any_detailed_feature:
+                    f.write("- 未找到详细特征信息。\n")
                 f.write("\n")
 
                 # 6. 蛋白质相互作用
@@ -1083,8 +1340,14 @@ class ReportGenerator:
                     for i, interaction in enumerate(interactions, 1):
                         interactor = interaction.get('interactor', {})
                         interactor_id = interactor.get('uniprotId', 'N/A')
-                        interactor_name = interactor.get('name', 'N/A')
-                        f.write(f"- 相互作用蛋白 {i}: {interactor_name} (UniProt ID: {interactor_id})\n")
+                        interactor_name = interactor.get('geneDisplayName', interactor.get('name', 'N/A')) # Use geneDisplayName if available
+                        experiments = interaction.get('experiments', 0)
+                        methods = [m.get('name', 'N/A') for m in interaction.get('methods', [])]
+
+                        f.write(f"- 相互作用蛋白 {i}: **{interactor_name}** (UniProt ID: {interactor_id})\n")
+                        f.write(f"  - 实验数量: {experiments}\n")
+                        if methods:
+                            f.write(f"  - 相互作用方法: {', '.join(methods)}\n")
                 else:
                     f.write("- 未找到相互作用信息\n")
                 f.write("\n")
@@ -1093,7 +1356,7 @@ class ReportGenerator:
                 f.write("## 7. 关键词\n")
                 keywords = info['keywords']
                 if keywords:
-                    f.write(f"- {', '.join(keywords)}\n")
+                    f.write(f"- {', '.join(sorted(keywords))}\n") # Sort keywords for consistent output
                 else:
                     f.write("- 未找到关键词信息\n")
                 f.write("\n")
@@ -1102,15 +1365,21 @@ class ReportGenerator:
                 f.write("## 8. 参考文献\n")
                 references = info['references']
                 if references:
-                    for i, ref in enumerate(references[:5], 1):
+                    for i, ref in enumerate(references[:10], 1): # Display up to 10 references
                         citation = ref.get('citation', {})
-                        authors = citation.get('authors', 'N/A')
+                        authors_list = citation.get('authors', [])
+                        authors = ", ".join(authors_list) if authors_list else 'N/A'
                         title = citation.get('title', 'N/A')
                         journal = citation.get('journal', 'N/A')
-                        year = citation.get('publicationDate', 'N/A')[:4]  # 提取年份
-                        f.write(f"- [{i}] {authors}, {title}, {journal}, {year}\n")
-                    if len(references) > 5:
-                        f.write(f"- 显示前5篇，共{len(references)}篇参考文献\n")
+                        year = citation.get('publicationDate', 'N/A')[:4]  # Extract year
+                        pubmed_id = ""
+                        for xref in citation.get('uniProtKBCrossReferences', []):
+                            if xref.get('database') == 'PubMed':
+                                pubmed_id = f" [PMID:{xref.get('id', '')}]"
+                                break
+                        f.write(f"- [{i}] {authors}, \"{title}\", *{journal}*, {year}{pubmed_id}\n")
+                    if len(references) > 10:
+                        f.write(f"- 显示前10篇，共{len(references)}篇参考文献\n")
                 else:
                     f.write("- 未找到参考文献信息\n")
                 f.write("\n")
@@ -1118,13 +1387,20 @@ class ReportGenerator:
                 # 9. 交叉引用
                 f.write("## 9. 交叉引用\n")
                 cross_refs = info['cross_references']
-                for db in cross_refs:
+                found_any_xref = False
+                for db in sorted(cross_refs.keys()): # Sort databases for consistent output
                     if cross_refs[db]:
+                        found_any_xref = True
                         f.write(f"### {db}\n")
                         ids = [xref.get('id') for xref in cross_refs[db] if xref.get('id')]
-                        f.write(f"- {', '.join(ids)}\n")
-                        if len(cross_refs[db]) > 5:
-                            f.write(f"- 共{len(cross_refs[db])}个条目\n")
+                        # Limit displayed IDs to avoid overly long lines
+                        display_ids = ids[:10]
+                        f.write(f"- {', '.join(display_ids)}")
+                        if len(ids) > 10:
+                            f.write(f" ... (共{len(ids)}个条目)")
+                        f.write("\n")
+                if not found_any_xref:
+                    f.write("- 未找到交叉引用信息。\n")
                 f.write("\n")
 
                 # 10. 蛋白质序列信息
@@ -1138,15 +1414,17 @@ class ReportGenerator:
                     # 每80个字符换行显示
                     formatted_seq = '\n'.join([seq[i:i+80] for i in range(0, len(seq), 80)])
                     f.write("- **氨基酸序列**:\n\n```\n{}\n```\n".format(formatted_seq))
+                else:
+                    f.write("- 未找到氨基酸序列信息。\n")
 
             print(f"Markdown报告已生成至 {md_filename}")
         except IOError as e:
-            Logger.log_error(f"生成Markdown报告失败: {str(e)}", Logger.error_log_path)
+            Logger.log_error(f"生成Markdown报告失败: {md_filename} - {str(e)}", ConfigManager().error_log_path)
             raise
 
 
 class PypdaApp:
-    """Pypda应用主类"""
+    """Pypda应用主类，负责命令行参数解析和工具调度"""
     def __init__(self):
         self.config = ConfigManager()
         self.logger = Logger()
@@ -1154,54 +1432,165 @@ class PypdaApp:
         self.pdb_processor = PDBProcessor(self.config, self.logger)
         self.uniprot_api = UniProtAPI(self.config, self.logger)
 
+    def _setup_seq_parser(self, subparsers: argparse._SubParsersAction) -> None:
+        """设置序列分析工具的子命令解析器"""
+        seq_parser = subparsers.add_parser(
+            "seq", 
+            help="蛋白质序列处理工具，支持序列获取、提取、突变和比对。",
+            formatter_class=argparse.RawTextHelpFormatter # For better help formatting
+        )
+        seq_subparsers = seq_parser.add_subparsers(dest="command", required=True, help="序列处理命令")
+
+        # seq fetch命令
+        fetch_parser = seq_subparsers.add_parser(
+            "fetch", 
+            help="批量获取蛋白质序列和结构域信息。",
+            description="""
+            从UniProt获取指定基因的人类蛋白质全长序列，并提取结构域信息。
+            输入文件应包含每行一个HGNC基因名称。
+            """
+        )
+        fetch_parser.add_argument("input_file", type=str, help="包含HGNC基因名称的文本文件路径，每行一个基因名称。")
+        fetch_parser.add_argument(
+            "output_dir", 
+            type=str,
+            default="protein_sequences", 
+            nargs='?', # Make default an option
+            help="输出目录，用于保存FASTA序列文件和结构域信息报告 (默认: protein_sequences)。"
+        )
+
+        # seq extract命令
+        extract_parser = seq_subparsers.add_parser(
+            "extract", 
+            help="从FASTA文件中提取指定位置的子序列。",
+            description="""
+            从给定的FASTA文件（通常是蛋白质序列）中，根据起始和结束位置提取子序列。
+            起始和结束位置均为1-based索引。
+            """
+        )
+        extract_parser.add_argument("fasta_file", type=str, help="输入FASTA文件路径。")
+        extract_parser.add_argument("start", type=int, help="子序列的起始位置 (1-based)。")
+        extract_parser.add_argument("end", type=int, help="子序列的结束位置 (1-based)。")
+
+        # seq mutate命令
+        mut_parser = seq_subparsers.add_parser(
+            "mutate", 
+            help="对蛋白质序列执行点突变。",
+            description="""
+            对FASTA文件中的蛋白质序列执行一个或多个点突变。
+            突变位置和新氨基酸列表必须一一对应。
+            例如：--pos 10 20 --aa A G 表示将第10位突变为丙氨酸，第20位突变为甘氨酸。
+            """
+        )
+        mut_parser.add_argument("fasta_file", type=str, help="输入FASTA文件路径。")
+        mut_parser.add_argument(
+            "--pos", 
+            nargs="+", 
+            type=int, 
+            required=True, 
+            help="一个或多个突变位置 (1-based)，用空格分隔。"
+        )
+        mut_parser.add_argument(
+            "--aa", 
+            nargs="+", 
+            type=str, 
+            required=True, 
+            help="与突变位置对应的新的氨基酸单字母代码，用空格分隔。"
+        )
+
+        # seq align命令
+        align_parser = seq_subparsers.add_parser(
+            "align", 
+            help="对多个蛋白质序列进行两两比对。",
+            description="""
+            对提供的所有FASTA文件中的蛋白质序列进行两两全局比对，
+            并报告比对得分和同源性百分比。
+            """
+        )
+        align_parser.add_argument("fasta_files", nargs="+", type=str, help="一个或多个FASTA文件路径，用于比对。")
+
+    def _setup_pdb_parser(self, subparsers: argparse._SubParsersAction) -> None:
+        """设置PDB文件处理工具的子命令解析器"""
+        pdb_parser = subparsers.add_parser(
+            "pdb", 
+            help="PDB文件处理工具，支持PDB文件下载、配体信息提取和文件整理。",
+            description="""
+            根据配置文件 (pdb_config.ini) 中的UniProt ID，自动下载相关PDB文件 (mmCIF格式)，
+            提取蛋白质中的配体信息，生成报告，并根据是否含有配体将PDB文件分类。
+            同时，下载配体化学信息并提取配体坐标。
+            """
+        )
+        # PDB command doesn't have subcommands, it just triggers the PDBProcessor.process()
+        # No additional arguments are directly exposed via CLI for this command,
+        # as its behavior is driven by pdb_config.ini.
+        # Adding a dummy argument or making it a direct command without sub-subparsers
+        # is a design choice. Given the current `process` method, no direct args are needed.
+
+    def _setup_uniprot_parser(self, subparsers: argparse._SubParsersAction) -> None:
+        """设置UniProt数据处理工具的子命令解析器"""
+        uniprot_parser = subparsers.add_parser(
+            "uniprot", 
+            help="UniProt数据处理工具，支持从UniProt API获取数据及分析本地JSON文件。",
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+        uniprot_subparsers = uniprot_parser.add_subparsers(dest="command", required=True, help="UniProt数据命令")
+
+        # uniprot fetch命令
+        uniprot_fetch_parser = uniprot_subparsers.add_parser(
+            "fetch", 
+            help="从UniProt API获取蛋白质数据并生成详细报告。",
+            description="""
+            根据UniProt蛋白质编号，从UniProt REST API获取完整的蛋白质信息，
+            并将其保存为JSON文件和Markdown格式的分析报告。
+            """
+        )
+        uniprot_fetch_parser.add_argument("accession", type=str, help="UniProt蛋白质编号，例如: Q13547。")
+        uniprot_fetch_parser.add_argument(
+            "-o", "--output_dir", 
+            type=str, 
+            default="uniprot_reports", 
+            help="保存JSON和Markdown报告的输出目录 (默认: uniprot_reports)。"
+        )
+
+        # uniprot analyze命令
+        uniprot_analyze_parser = uniprot_subparsers.add_parser(
+            "analyze", 
+            help="分析现有UniProt JSON文件并生成报告。",
+            description="""
+            加载本地已有的UniProt蛋白质信息JSON文件，
+            提取关键数据并生成Markdown格式的分析报告。
+            """
+        )
+        uniprot_analyze_parser.add_argument(
+            "-f", "--file", 
+            type=str, 
+            required=True, 
+            help="要分析的UniProt蛋白质信息JSON文件路径。"
+        )
+
     def setup_parser(self) -> argparse.ArgumentParser:
         """设置命令行参数解析器
 
         Returns:
             配置好的参数解析器
         """
-        parser = argparse.ArgumentParser(description="蛋白质分析综合工具")
-        subparsers = parser.add_subparsers(dest="tool", required=True)
+        parser = argparse.ArgumentParser(
+            description="蛋白质数据分析综合工具 (PyPDA)",
+            formatter_class=argparse.RawTextHelpFormatter # For general help formatting
+        )
+        
+        # Add a version argument
+        parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.0.0')
 
-        # 序列分析工具子解析器
-        seq_parser = subparsers.add_parser("seq", help="蛋白质序列处理工具")
-        seq_subparsers = seq_parser.add_subparsers(dest="command", required=True)
+        subparsers = parser.add_subparsers(
+            dest="tool", 
+            required=True, 
+            help="选择要使用的工具：序列处理 (seq), PDB文件处理 (pdb), 或UniProt数据分析 (uniprot)。"
+        )
 
-        # seq fetch命令
-        fetch_parser = seq_subparsers.add_parser("fetch", help="批量获取蛋白质序列和结构域信息")
-        fetch_parser.add_argument("input_file", help="包含HGNC基因名称的文本文件")
-        fetch_parser.add_argument("output_dir", default="protein_sequences", help="输出目录")
-
-        # seq extract命令
-        extract_parser = seq_subparsers.add_parser("extract", help="提取指定位置的序列")
-        extract_parser.add_argument("fasta_file", help="输入FASTA文件路径")
-        extract_parser.add_argument("start", type=int, help="起始位置")
-        extract_parser.add_argument("end", type=int, help="结束位置")
-
-        # seq mutate命令
-        mut_parser = seq_subparsers.add_parser("mutate", help="执行蛋白质序列突变")
-        mut_parser.add_argument("fasta_file", help="输入FASTA文件路径")
-        mut_parser.add_argument("--pos", nargs="+", type=int, required=True, help="突变位置")
-        mut_parser.add_argument("--aa", nargs="+", required=True, help="新氨基酸")
-
-        # seq align命令
-        align_parser = seq_subparsers.add_parser("align", help="比较多个序列")
-        align_parser.add_argument("fasta_files", nargs="+", help="FASTA文件路径列表")
-
-        # PDB分析工具子解析器
-        pdb_parser = subparsers.add_parser("pdb", help="PDB文件处理工具")
-
-        # UniProt分析工具子解析器
-        uniprot_parser = subparsers.add_parser("uniprot", help="UniProt数据处理工具")
-        uniprot_subparsers = uniprot_parser.add_subparsers(dest="command", required=True)
-
-        # uniprot fetch命令
-        uniprot_fetch_parser = uniprot_subparsers.add_parser("fetch", help="从UniProt API获取数据并生成报告")
-        uniprot_fetch_parser.add_argument("accession", help="UniProt蛋白质编号，例如: Q13547")
-
-        # uniprot analyze命令
-        uniprot_analyze_parser = uniprot_subparsers.add_parser("analyze", help="分析现有JSON文件并生成报告")
-        uniprot_analyze_parser.add_argument("-f", "--file", required=True, help="要分析的JSON文件路径")
+        self._setup_seq_parser(subparsers)
+        self._setup_pdb_parser(subparsers)
+        self._setup_uniprot_parser(subparsers)
 
         return parser
 
@@ -1210,33 +1599,35 @@ class PypdaApp:
         parser = self.setup_parser()
         args = parser.parse_args()
 
-        if args.tool == "seq":
-            self.seq_processor.process_command(args)
-        elif args.tool == "pdb":
-            self.pdb_processor.process()
-        elif args.tool == "uniprot":
-            if args.command == "fetch":
-                # 执行fetch命令
-                data = self.uniprot_api.get_uniprot_data(args.accession)
-                if not data:
-                    self.logger.log_error("无法获取UniProt数据", self.config.error_log_path)
-                    return
-                json_filename = CommonUtils.save_to_json(data, args.accession)
-                analyzer = ProteinAnalyzer()
-                protein_info = analyzer.extract_protein_info(data)
-                md_filename = os.path.splitext(json_filename)[0] + '.md'
-                ReportGenerator.generate_md_report(protein_info, md_filename)
-            elif args.command == "analyze":
-                # 执行analyze命令
-                try:
+        try:
+            if args.tool == "seq":
+                self.seq_processor.process_command(args)
+            elif args.tool == "pdb":
+                self.pdb_processor.process()
+            elif args.tool == "uniprot":
+                if args.command == "fetch":
+                    # Create output directory for uniprot reports
+                    output_dir_path = Path(args.output_dir)
+                    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+                    data = self.uniprot_api.get_uniprot_data(args.accession)
+                    if not data:
+                        self.logger.log_error("无法获取UniProt数据。", self.config.error_log_path)
+                        return
+                    json_filename = CommonUtils.save_to_json(data, args.accession, str(output_dir_path))
+                    analyzer = ProteinAnalyzer()
+                    protein_info = analyzer.extract_protein_info(data)
+                    md_filename = str(output_dir_path / (Path(json_filename).stem + '.md'))
+                    ReportGenerator.generate_md_report(protein_info, md_filename)
+                elif args.command == "analyze":
                     data = CommonUtils.load_from_json(args.file)
                     analyzer = ProteinAnalyzer()
                     protein_info = analyzer.extract_protein_info(data)
-                    md_filename = os.path.splitext(args.file)[0] + '.md'
+                    md_filename = str(Path(args.file).with_suffix('.md')) # Save MD in same directory as JSON
                     ReportGenerator.generate_md_report(protein_info, md_filename)
-                except Exception as e:
-                    self.logger.log_error(f"分析文件失败: {str(e)}", self.config.error_log_path)
-
+        except Exception as e:
+            self.logger.log_error(f"应用程序运行过程中发生未捕获的错误: {str(e)}", self.config.error_log_path)
+            # Optionally, re-raise for debugging during development: raise
 
 if __name__ == "__main__":
     app = PypdaApp()
