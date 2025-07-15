@@ -5,8 +5,10 @@ import configparser
 import json
 import warnings
 import shutil
-from pathlib import Path
+import sys
+import io
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict, Union
 from Bio import SeqIO
 from Bio.Align import PairwiseAligner
@@ -21,8 +23,6 @@ from glob import glob
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime
-import sys
-import io
 
 # 过滤 PDB 构建警告
 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
