@@ -1,71 +1,159 @@
-# Python Protein Data Analysis 工具说明
-## 项目概述
-pypda.py是一个综合性的蛋白质分析工具，整合了序列分析和PDB结构分析功能，能够帮助研究人员快速获取蛋白质序列、分析结构域、进行序列突变和比对，以及提取PDB文件中的配体信息。
+# PyPDA: 蛋白质分析综合工具
 
-## 功能特性
-### 序列分析功能
-- 从UniProt数据库获取蛋白质序列
-- 提取蛋白质结构域信息并保存为Markdown文件
-- 截取蛋白质序列的特定片段
-- 对蛋白质序列进行定点突变
-- 多序列比对并计算同源性百分比
-### PDB结构分析功能
-- 从UniProt ID获取相关的PDB ID
-- 下载PDB文件（mmCIF格式）
-- 提取PDB文件中的配体信息
-- 分离包含配体和不包含配体的PDB文件
-- 下载配体的化学信息（JSON格式）
-- 生成配体信息汇总（Markdown格式）
-- 提取配体坐标并保存为单独的CIF文件
-## 安装要求
-- Python 3.x
-- 依赖库：BioPython, requests, configparser
-## 配置文件
-项目需要以下配置文件：
+PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据检索功能的综合工具，旨在为生物信息学研究提供便捷的蛋白质数据分析解决方案。
 
-1. seq_config.ini ：序列分析相关配置
-   
-   - UNIPROT_API：UniProt API地址
-   - UNIPROT_XML_API：UniProt XML格式API地址
-   - XML_NAMESPACES：XML命名空间配置
-2. pdb_config.ini ：PDB分析相关配置
-   
-   - 包含任务特定的输出目录和UniProt ID
-3. exclude_residues.ini ：需要排除的残基配置
-## 使用方法
-### 命令行格式
+## 功能特点
+
+- **序列分析**：从UniProt批量获取蛋白质序列、提取特定区域、执行突变分析和序列比对
+- **PDB处理**：下载PDB文件、提取配体信息并分类管理
+- **UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
+- **多格式输出**：支持FASTA、JSON和Markdown等多种格式的输入输出
+
+## 安装方法
+
+### 前提条件
+- Python 3.8+ 
+- 所需依赖库：biopython, requests, configparser
+
+### 安装步骤
+
+1. 克隆或下载本项目到本地
+
+2. 安装依赖包
+
+3. 配置文件设置：
+   - seq_config.ini：序列分析相关配置
+   - pdb_config.ini：PDB处理相关配置
+   - exclude_residues.ini：定义需要排除的残基
+
+## 使用说明
+
+### 基本命令格式
+```bash
+python pypda.py <工具> <命令> [参数]
 ```
-python pypda.py [seq|pdb] [command] [options]
+
+### 工具和命令详解
+
+#### 1. 序列分析工具 (`seq`)
+
+用于蛋白质序列的获取、提取、突变和比对分析。
+
+##### 1.1 获取蛋白质序列和结构域信息 (`fetch`)
+从UniProt批量获取蛋白质序列和结构域信息
+
+```bash
+python pypda.py seq fetch <输入文件> <输出目录>
 ```
-### 序列分析示例
-1. 获取蛋白质序列和结构域信息：
+- **参数**：
+  - `input_file`: 包含HGNC基因名称的文本文件（每行一个基因名）
+  - `output_dir`: 输出目录，默认值为"protein_sequences"
+
+**示例**：
+```bash
+python pypda.py seq fetch genes.txt ./sequences
 ```
-python pypda.py seq fetch --input_file genes.txt --output_dir seq_output
+
+##### 1.2 提取序列区域 (`extract`)
+从FASTA文件中提取指定位置的氨基酸序列
+
+```bash
+python pypda.py seq extract <fasta_file> <start> <end>
 ```
-2. 提取序列片段（从10到100位）：
+- **参数**：
+  - `fasta_file`: 输入FASTA文件路径
+  - `start`: 起始位置（1-based）
+  - `end`: 结束位置（1-based）
+
+**示例**：
+```bash
+python pypda.py seq extract protein.fasta 10 50
 ```
-python pypda.py seq extract --fasta_file protein.fasta --start 10 --end 100
+
+##### 1.3 执行序列突变 (`mutate`)
+对蛋白质序列执行定点突变
+
+```bash
+python pypda.py seq mutate <fasta_file> --pos <位置列表> --aa <氨基酸列表>
 ```
-3. 序列突变（在位置5和15分别突变为A和K）：
+- **参数**：
+  - `fasta_file`: 输入FASTA文件路径
+  - `--pos`: 突变位置列表（空格分隔）
+  - `--aa`: 对应位置的新氨基酸（空格分隔）
+
+**示例**：
+```bash
+python pypda.py seq mutate protein.fasta --pos 15 23 --aa A K
 ```
-python pypda.py seq mutate --fasta_file protein.fasta --pos 5 15 --aa A K
+
+##### 1.4 序列比对分析 (`align`)
+比较多个蛋白质序列的同源性
+
+```bash
+python pypda.py seq align <fasta_files>
 ```
-4. 多序列比对：
+- **参数**：
+  - `fasta_files`: 多个FASTA文件路径（空格分隔）
+
+**示例**：
+```bash
+python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
 ```
-python pypda.py seq align --fasta_files protein1.fasta protein2.fasta
+
+#### 2. PDB文件处理工具 (`pdb`)
+
+用于PDB文件的下载、配体提取和分类管理。
+
+#### 3. UniProt数据处理工具 (`uniprot`)
+
+用于从UniProt数据库获取蛋白质注释信息并生成分析报告。
+
+##### 3.1 获取UniProt数据并生成报告 (`fetch`)
+从UniProt API获取蛋白质数据并生成JSON和Markdown报告
+
+```bash
+python pypda.py uniprot fetch <accession>
 ```
-### PDB分析示例
+- **参数**：
+  - `accession`: UniProt蛋白质编号（例如：Q13547）
+
+**示例**：
+```bash
+python pypda.py uniprot fetch Q13547
 ```
-python pypda.py pdb
+
+##### 3.2 分析JSON文件并生成报告 (`analyze`)
+分析已有的UniProt JSON数据文件并生成Markdown报告
+
+```bash
+python pypda.py uniprot analyze -f <json_file>
 ```
+- **参数**：
+  - `-f, --file`: 要分析的JSON文件路径
+
+**示例**：
+```bash
+python pypda.py uniprot analyze -f Q13547_20250715.json
+```
+
 ## 输出文件说明
-- 序列分析：FASTA文件、结构域信息Markdown文件
-- PDB分析：
-  - 配体信息：pdb_ligand.md
-  - 化学组件信息：chemical_components_info.md
-  - 分类文件：with_ligands/和no_ligand/目录
-  - 配体坐标文件：ligands/目录下的CIF文件
-## 注意事项
-- 确保配置文件路径正确
-- 网络连接稳定以保证成功下载数据
-- 大型PDB文件可能需要较长处理时间
+
+- **序列分析输出**：
+  - FASTA文件：包含蛋白质序列
+  - domain_info.md：结构域信息报告
+
+- **UniProt分析输出**：
+  - JSON文件：原始数据（命名格式：<accession>_<date>.json）
+  - Markdown报告：蛋白质详细信息（命名格式：<accession>_<date>.md）
+
+## 配置文件说明
+
+1. **seq_config.ini**：序列分析配置
+   - UNIPROT_API：UniProt API相关URL配置
+   - XML_NAMESPACES：XML解析命名空间
+
+2. **pdb_config.ini**：PDB处理配置
+   - 包含PDB文件下载和处理相关参数
+
+3. **exclude_residues.ini**：定义需要排除的残基类型
+   - 在配体提取时用于过滤不需要考虑的残基
