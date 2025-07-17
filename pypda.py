@@ -908,76 +908,71 @@ class PDBProcessor:
 
         CommonUtils.parallel_executor(process_single_cif, cif_files)
 
-    def process(self) -> None:
-        """处理PDB相关任务"""
-        for section in self.config.pdb_config.sections():
-            output_dir = self.config.pdb_config.get(section, 'output', fallback=None)
-            uniprot_id = self.config.pdb_config.get(section, 'uniprot', fallback=None)
+    def process(self, uniprot_id: str, output_dir: str) -> None:
+        """处理PDB文件下载和分析
 
-            if not output_dir:
-                self.logger.log_error(f"PDB配置文件中 {section} 部分缺少 'output' 路径。", self.config.error_log_path)
-                continue
-            if not uniprot_id:
-                self.logger.log_error(f"PDB配置文件中 {section} 部分缺少 'uniprot' ID。", self.config.error_log_path)
-                continue
-            
-            print(f"\n--- 开始处理 PDB 任务: {section} (UniProt ID: {uniprot_id}) ---")
-            
-            pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
-            if pdb_ids:
-                print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
-                self.download_pdb_files(pdb_ids, output_dir)
-            else:
-                self.logger.log_error(f"任务 {section}: 未找到对应的PDB ID。", self.config.error_log_path)
-                continue # Skip further processing for this section if no PDB IDs found
+        Args:
+            uniprot_id: UniProt蛋白质编号
+            output_dir: 输出目录路径
+        """
+        if not output_dir:
+            self.logger.log_error("缺少 'output' 路径。", self.config.error_log_path)
+            return
+        if not uniprot_id:
+            self.logger.log_error("缺少 'uniprot' ID。", self.config.error_log_path)
+            return
+        
+        print(f"\n--- 开始处理 PDB 任务 (UniProt ID: {uniprot_id}) ---")
+        
+        pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
+        if pdb_ids:
+            print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
+            self.download_pdb_files(pdb_ids, output_dir)
+        else:
+            self.logger.log_error("未找到对应的PDB ID。", self.config.error_log_path)
+            return  # Skip further processing if no PDB IDs found
 
-            # Re-check if any CIF files were downloaded before proceeding
-            downloaded_cif_files = glob(str(Path(output_dir) / '*.cif'))
-            if not downloaded_cif_files:
-                self.logger.log_error(f"在 {output_dir} 中未找到下载的CIF文件，跳过后续配体处理。", self.config.error_log_path)
-                continue
+        # Re-check if any CIF files were downloaded before proceeding
+        downloaded_cif_files = glob(str(Path(output_dir) / '*.cif'))
+        if not downloaded_cif_files:
+            self.logger.log_error(f"在 {output_dir} 中未找到下载的CIF文件，跳过后续配体处理。", self.config.error_log_path)
+            return
 
-            ligand_pdb_dict = self.extract_ligands_from_pdb(output_dir)
-            
-            # Moved file organization before writing ligand info to MD, as files are moved *out* of output_dir
-            # This ensures only relevant files are in 'output_dir' for ligand extraction later.
-            # However, the previous logic was to move *after* extraction, which means extract_ligands_from_pdb
-            # should operate on the initial download directory.
-            # Let's adjust: extract, then write MD, then move. This maintains the flow.
-            
-            if ligand_pdb_dict:
-                self.write_ligand_info_to_md(ligand_pdb_dict, output_dir)
-            else:
-                print(f"在 {output_dir} 中未找到任何配体信息。")
-            
-            # Move files after all extractions from the original directory are done
-            self.move_files_based_on_ligands(output_dir, ligand_pdb_dict)
-            
-            # Read ligands from the generated MD file to ensure consistency
-            md_file_path = Path(output_dir) / 'pdb_ligand.md'
-            unique_ligands: Set[str] = set()
-            if md_file_path.exists():
-                try:
-                    with open(md_file_path, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                    for line in lines[2:]: # Skip header and separator
-                        parts = [p.strip() for p in line.strip().split('|') if p.strip()]
-                        if len(parts) >= 1:
-                            unique_ligands.add(parts[0])
-                except IOError as e:
-                    self.logger.log_error(f"读取 {md_file_path} 失败: {str(e)}", self.config.error_log_path)
-            else:
-                self.logger.log_error(f"配体信息文件 {md_file_path} 不存在，无法获取唯一配体列表。", self.config.error_log_path)
+        ligand_pdb_dict = self.extract_ligands_from_pdb(output_dir)
+        
+        if ligand_pdb_dict:
+            self.write_ligand_info_to_md(ligand_pdb_dict, output_dir)
+        else:
+            print(f"在 {output_dir} 中未找到任何配体信息。")
+        
+        # Move files after all extractions from the original directory are done
+        self.move_files_based_on_ligands(output_dir, ligand_pdb_dict)
+        
+        # Read ligands from the generated MD file to ensure consistency
+        md_file_path = Path(output_dir) / 'pdb_ligand.md'
+        unique_ligands: Set[str] = set()
+        if md_file_path.exists():
+            try:
+                with open(md_file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                for line in lines[2:]: # Skip header and separator
+                    parts = [p.strip() for p in line.strip().split('|') if p.strip()]
+                    if len(parts) >= 1:
+                        unique_ligands.add(parts[0])
+            except IOError as e:
+                self.logger.log_error(f"读取 {md_file_path} 失败: {str(e)}", self.config.error_log_path)
+        else:
+            self.logger.log_error(f"配体信息文件 {md_file_path} 不存在，无法获取唯一配体列表。", self.config.error_log_path)
 
-            if unique_ligands:
-                print(f"找到唯一配体: {', '.join(sorted(list(unique_ligands)))}")
-                self.download_ligand_json(unique_ligands, output_dir)
-                self.write_chemical_info_to_md(unique_ligands, output_dir)
-                self.extract_ligands_coordinates(output_dir)
-            else:
-                print("未找到任何配体，跳过配体JSON下载和坐标提取。")
+        if unique_ligands:
+            print(f"找到唯一配体: {', '.join(sorted(list(unique_ligands)))}")
+            self.download_ligand_json(unique_ligands, output_dir)
+            self.write_chemical_info_to_md(unique_ligands, output_dir)
+            self.extract_ligands_coordinates(output_dir)
+        else:
+            print("未找到任何配体，跳过配体JSON下载和坐标提取。")
 
-        print('\n所有PDB任务完成。')
+        print('\nPDB任务处理完成。')
 
 
 class ProteinInfo(TypedDict):
@@ -1515,16 +1510,19 @@ class PypdaApp:
             "pdb", 
             help="PDB文件处理工具，支持PDB文件下载、配体信息提取和文件整理。",
             description="""
-            根据配置文件 (pdb_config.ini) 中的UniProt ID，自动下载相关PDB文件 (mmCIF格式)，
+            根据提供的UniProt ID，自动下载相关PDB文件 (mmCIF格式)，
             提取蛋白质中的配体信息，生成报告，并根据是否含有配体将PDB文件分类。
             同时，下载配体化学信息并提取配体坐标。
             """
         )
-        # PDB command doesn't have subcommands, it just triggers the PDBProcessor.process()
-        # No additional arguments are directly exposed via CLI for this command,
-        # as its behavior is driven by pdb_config.ini.
-        # Adding a dummy argument or making it a direct command without sub-subparsers
-        # is a design choice. Given the current `process` method, no direct args are needed.
+        # 添加uniprot_id和output_dir参数
+        pdb_parser.add_argument("uniprot_id", type=str, help="UniProt蛋白质编号，例如: P08519。")
+        pdb_parser.add_argument(
+            "output_dir", 
+            type=str, 
+            default="pdb_output", 
+            help="输出目录，用于保存PDB文件和分析结果 (默认: pdb_output)。"
+        )
 
     def _setup_uniprot_parser(self, subparsers: argparse._SubParsersAction) -> None:
         """设置UniProt数据处理工具的子命令解析器"""
@@ -1603,7 +1601,8 @@ class PypdaApp:
             if args.tool == "seq":
                 self.seq_processor.process_command(args)
             elif args.tool == "pdb":
-                self.pdb_processor.process()
+                # 传递命令行参数给PDBProcessor
+                self.pdb_processor.process(uniprot_id=args.uniprot_id, output_dir=args.output_dir)
             elif args.tool == "uniprot":
                 if args.command == "fetch":
                     # Create output directory for uniprot reports
