@@ -31,27 +31,11 @@ warnings.filterwarnings("ignore", category=PDBConstructionWarning)
 class ConfigManager:
     """配置文件管理类，负责读取和管理配置信息"""
     def __init__(self):
-        self.seq_config = self._read_config('seq_config.ini')
-        self.pdb_config = self._read_config('pdb_config.ini')
-        self.ns = dict(self.seq_config.items('XML_NAMESPACES')) if self.seq_config.has_section('XML_NAMESPACES') else {}
+        self.ns = {'uniprot': 'http://uniprot.org/uniprot'}
         self.error_log_path = os.path.join(os.getcwd(), 'error.txt')
-        self.uniprot_api = self.seq_config.get('UNIPROT_API', 'UNIPROT_API', fallback='https://www.uniprot.org/uniprot/')
-        self.uniprot_xml_api = self.seq_config.get('UNIPROT_API', 'UNIPROT_XML_API', fallback='https://www.uniprot.org/uniprot/')
-        self.uniprot_api_base_url = self.seq_config.get('uniprot', 'uniprot_api_base_url', fallback='https://rest.uniprot.org/uniprotkb/')
-
-    @staticmethod
-    def _read_config(config_path: str) -> configparser.ConfigParser:
-        """读取配置文件
-
-        Args:
-            config_path: 配置文件路径
-
-        Returns:
-            配置解析器对象
-        """
-        config = configparser.ConfigParser()
-        config.read(config_path)
-        return config
+        self.uniprot_api = 'https://rest.uniprot.org/uniprotkb/search'
+        self.uniprot_xml_api = 'https://rest.uniprot.org/uniprotkb/'
+        self.uniprot_api_base_url = 'https://rest.uniprot.org/uniprotkb/'
 
 
 class Logger:
@@ -272,20 +256,25 @@ class SequenceProcessor:
                     domain_f.write(f"### 总氨基酸数量: {total_amino_acids}\n\n")
                     
                     found_domains = False
-                    for feature in root.findall('.//uniprot:feature[@type="domain"]', self.config.ns):
-                        begin_elem = feature.find('uniprot:location/uniprot:begin', self.config.ns)
-                        end_elem = feature.find('uniprot:location/uniprot:end', self.config.ns)
-                        
-                        if begin_elem is not None and end_elem is not None:
-                            begin = int(begin_elem.attrib['position'])
-                            end = int(end_elem.attrib['position'])
-                            domain_name = feature.attrib.get('description', '未知结构域')
-                            domain_f.write(f"- 结构域名称: {domain_name}, 序列范围: {begin}-{end}\n")
-                            print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
-                            found_domains = True
+                    # 特征筛选条件domain
+                    for feature in root.findall('.//uniprot:feature', self.config.ns):
+                        feature_type = feature.attrib.get('type')
+                        if feature_type in ["domain"]:
+                            begin_elem = feature.find('uniprot:location/uniprot:begin', self.config.ns)
+                            end_elem = feature.find('uniprot:location/uniprot:end', self.config.ns)
+                            
+                            if begin_elem is not None and end_elem is not None:
+                                begin = int(begin_elem.attrib['position'])
+                                end = int(end_elem.attrib['position'])
+                                domain_name = feature.attrib.get('description', '未知结构特征')
+                                # 保持类型信息在输出中
+                                domain_f.write(f"- 结构特征名称: {domain_name} (类型: {feature_type}), 序列范围: {begin}-{end}\n")
+                                print(f"{gene} 的 {domain_name} 结构特征的序列编号范围: {begin}-{end}")
+                                found_domains = True
                     if not found_domains:
+                        # 更新未找到信息时的提示文本
                         domain_f.write("- 未找到结构域信息。\n")
-                print(f"已将 {gene} 的结构域信息写入 {domain_info_file}")
+                print(f"已将 {gene} 的结构特征信息写入 {domain_info_file}")
 
             except requests.exceptions.RequestException as e:
                 self.logger.log_error(f"获取 {gene} 的结构域信息失败: {str(e)}", self.config.error_log_path)
@@ -444,21 +433,17 @@ class SequenceProcessor:
             args: 命令行参数
         """
         if args.command == "fetch":
-            try:
-                with open(args.input_file, 'r', encoding='utf-8') as f:
-                    genes = [line.strip() for line in f if line.strip()]
-            except IOError as e:
-                self.logger.log_error(f"读取输入文件失败: {args.input_file} - {str(e)}", self.config.error_log_path)
+            # 从参数解析基因列表，用分号分隔
+            genes = [gene.strip() for gene in args.genes.split(';') if gene.strip()]
+            if not genes:
+                self.logger.log_error("未提供有效的基因名称。", self.config.error_log_path)
                 return
-
-            if genes:
-                gene_uniprot_pairs = list(self.fetch_protein_sequences(genes, args.output_dir))
-                if gene_uniprot_pairs:
-                    self.fetch_domain_information(gene_uniprot_pairs, args.output_dir)
-                else:
-                    self.logger.log_error("未成功获取任何基因的UniProt ID，无法获取结构域信息。", self.config.error_log_path)
+            
+            gene_uniprot_pairs = list(self.fetch_protein_sequences(genes, args.output_dir))
+            if gene_uniprot_pairs:
+                self.fetch_domain_information(gene_uniprot_pairs, args.output_dir)
             else:
-                self.logger.log_error("输入文件中未找到有效的基因名称。", self.config.error_log_path)
+                self.logger.log_error("未成功获取任何基因的UniProt ID，无法获取结构域信息。", self.config.error_log_path)
 
         elif args.command == "extract":
             if not os.path.isfile(args.fasta_file):
@@ -1442,10 +1427,10 @@ class PypdaApp:
             help="批量获取蛋白质序列和结构域信息。",
             description="""
             从UniProt获取指定基因的人类蛋白质全长序列，并提取结构域信息。
-            输入文件应包含每行一个HGNC基因名称。
+            基因名称用分号分隔直接输入（例如：BRCA1;TP53;EGFR）。
             """
         )
-        fetch_parser.add_argument("input_file", type=str, help="包含HGNC基因名称的文本文件路径，每行一个基因名称。")
+        fetch_parser.add_argument("genes", type=str, help="要下载的基因名称，用分号分隔（例如：BRCA1;TP53;EGFR）。")
         fetch_parser.add_argument(
             "output_dir", 
             type=str,
