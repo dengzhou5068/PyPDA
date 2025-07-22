@@ -7,7 +7,6 @@ import warnings
 import shutil
 import sys
 import io
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict, Union
 from Bio import SeqIO
@@ -15,9 +14,10 @@ from Bio.Align import PairwiseAligner
 from Bio.PDB.PDBList import PDBList
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from glob import glob
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime
@@ -32,7 +32,7 @@ class ConfigManager:
     def __init__(self):
         self.ns = {'uniprot': 'http://uniprot.org/uniprot'}
         self.error_log_path = os.path.join(os.getcwd(), 'error.txt')
-        # Consolidated UniProt API base URL
+        # 统一的UniProt API基础URL
         self.uniprot_api_base_url = 'https://rest.uniprot.org/uniprotkb/'
 
 
@@ -196,17 +196,17 @@ class SequenceProcessor:
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
         for gene in tqdm(genes, desc="Fetching sequences"):
-            # Use the UniProtAPI's search endpoint with specific fields
+            # 使用UniProtAPI的搜索端点获取特定字段
             params = {
                 "query": f"gene_exact:{gene} AND organism_id:9606",
                 "format": "fasta",
                 "fields": "accession,sequence"
             }
             try:
-                # UniProtAPI's get_uniprot_data is for specific accession,
+                # UniProtAPI的get_uniprot_data方法用于获取特定编号的信息
                 # for search, we need a generic method, or extend UniProtAPI
                 # For now, directly use requests as UniProtAPI is for single accession.
-                # A better design would be to add a search method to UniProtAPI.
+                # 更好的设计是在UniProtAPI中添加搜索方法
                 # Re-using the session from UniProtAPI for consistency in headers/retries
                 response = self.uniprot_api.session.get(
                     f"{self.config.uniprot_api_base_url}search",
@@ -270,7 +270,7 @@ class SequenceProcessor:
                     continue
                 
                 features = data.get('features', [])
-                # 添加调试日志，输出获取到的特征数量
+                # 输出获取到的特征数量用于调试
                 print(f"调试信息: UniProt ID {uniprot_id} 共获取到 {len(features)} 个特征")
 
                 with open(domain_info_file, "a", encoding="utf-8") as domain_f:
@@ -280,16 +280,16 @@ class SequenceProcessor:
                     found_domains = False
                     for feature in features:
                         feature_type = feature.get('type')
-                        # 关键修复：匹配正确的结构域类型
+                        # 匹配正确的结构域类型（Domain和Region）
                         if feature_type in ("Domain", "Region"):
-                            # 获取结构域名称（优先使用description，其次使用featureId）
+                            # 获取结构域名称（优先使用description字段，其次使用featureId）
                             domain_name = feature.get('description') or feature.get('featureId', '未知结构域')
                             location = feature.get('location', {})
                             begin = location.get('start', {}).get('value')
                             end = location.get('end', {}).get('value')
                             
                             if begin is not None and end is not None:
-                                # 添加特征类型信息，帮助区分不同类型的结构特征
+                                # 添加特征类型标签，区分不同类型的结构特征
                                 domain_f.write(f"- [{feature_type}] {domain_name}: 序列范围 {begin}-{end}\n")
                                 print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
                                 found_domains = True
@@ -356,9 +356,6 @@ class SequenceProcessor:
         Returns:
             突变后的SeqRecord对象
         """
-        from Bio.Seq import Seq
-        from Bio.SeqRecord import SeqRecord
-
         sequence_list = list(str(record.seq)) # Convert to list for mutable operations
         for pos, aa in zip(mutation_positions, new_amino_acids):
             if 1 <= pos <= len(sequence_list):
@@ -965,7 +962,7 @@ class UniProtAPI:
         session.mount('https://', adapter)
         session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'PyPDA/1.0 (https://github.com/your_org/pypda; pypda@your_email.com)' # Good practice to provide contact info
+            'User-Agent': 'PyPDA/1.0 (https://github.com/your_org/pypda; pypda@your_email.com)' # 提供联系信息是良好实践
         })
         return session
 
@@ -981,8 +978,8 @@ class UniProtAPI:
         url = f'{self.api_base_url}{accession}'
         try:
             print(f"正在从 {url} 获取数据...")
-            response = self.session.get(url, timeout=30) # Increased timeout
-            response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+            response = self.session.get(url, timeout=30) # 增加超时时间
+            response.raise_for_status() # 对错误响应(4xx或5xx)抛出HTTPError异常
             return response.json()
         except requests.exceptions.HTTPError as e:
             self.logger.log_error(f"HTTP请求错误 (UniProt API - {url}): {e.response.status_code} - {e.response.text}", self.config.error_log_path)
@@ -1082,9 +1079,9 @@ class ProteinAnalyzer:
         for feature in features:
             ft = feature.get('type')
             info['features']['counts'][ft] = info['features']['counts'].get(ft, 0) + 1
-            if ft == "Region" and feature.get('description') == "Domain": # Special handling for domains
+            if ft == "Region" and feature.get('description') == "Domain": # 对结构域进行特殊处理
                 info['features']['detailed']['Domain'].append(feature)
-            elif ft in info['features']['detailed']: # For other explicit detailed types
+            elif ft in info['features']['detailed']: # 对于其他明确的详细类型
                 info['features']['detailed'][ft].append(feature)
 
         # 6. 蛋白质相互作用
@@ -1557,7 +1554,6 @@ class PypdaApp:
                     ReportGenerator.generate_md_report(protein_info, md_filename)
         except Exception as e:
             self.logger.log_error(f"应用程序运行过程中发生未捕获的错误: {e}", self.config.error_log_path)
-            # raise # Uncomment for debugging during development
 
 if __name__ == "__main__":
     app = PypdaApp()
