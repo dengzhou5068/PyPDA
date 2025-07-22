@@ -1,15 +1,14 @@
-# Byte-compiled / optimized / DLL files
+# Python 字节码文件
 __pycache__/
 *.py[cod]
 *$py.class
 
-# C extensions
+# C 扩展
 *.so
 
-# Distribution / packaging
+# 分发/打包
 .Python
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
@@ -20,23 +19,12 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
+# 单元测试/覆盖率报告
 htmlcov/
 .tox/
 .nox/
@@ -49,90 +37,87 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-cover/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
+# 虚拟环境
+venv/
+env/
+ENV/
 .env
 .venv
-env/
-venv/
-ENV/
 env.bak/
 venv.bak/
 
-# Spyder project settings
-.spyderproject
-.spyproject
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
 
-# Rope project settings
-.ropeproject
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
 
-# mkdocs documentation
-/site
+# 日志文件
+logs/
+*.log
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# 操作系统文件
+.DS_Store
+Thumbs.db
 
-# Pyre type checker
-.pyre/
+# 生物信息学数据文件（大型输入/输出）
+*.fasta.gz
+*.csv.gz
+*.bigwig
+*.bam
+*.vcf
+*.bed
+*.gff
+*.gtf
+*.h5
+*.hdf5
 
-# pytype static type analyzer
-.pytype/
+# 配置文件（包含敏感信息）
+*.key
+*.pem
+secrets.ini
 
-# Cython debug symbols
-cython_debug/
+# 运行时生成的临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# 本地开发配置
+local_settings.py
+
+# 打包工具
+.poetry/
+.pipenv/
+
+# 文档构建
+docs/_build/
+_site/
+
+# 其他常见排除项
+*.swp
+*.swo
+*~```
+
+配置说明：
+1. **核心Python忽略规则**：覆盖字节码、C扩展、打包产物和虚拟环境
+2. **IDE/编辑器配置**：包含PyCharm和VS Code的工作区文件，保留关键配置文件
+3. **生物信息学特定**：排除大型序列文件和数据格式（.fasta.gz, .bam等）
+4. **安全考虑**：忽略密钥文件和包含敏感信息的配置
+5. **跨平台兼容**：包含Windows(Thumbs.db)和macOS(.DS_Store)系统文件
+6. **开发流程**：涵盖测试报告、日志、临时文件和Jupyter Notebook缓存
+
+此配置可有效防止版本控制中包含不必要的文件，同时保留项目关键配置和源代码。
