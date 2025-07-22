@@ -22,7 +22,6 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 2. 安装依赖包
 
 3. 配置文件设置：
-   - seq_config.ini：序列分析相关配置
    - exclude_residues.ini：定义需要排除的残基
 
 ## 使用说明
@@ -153,9 +152,5 @@ python pypda.py uniprot analyze -f Q13547_20250715.json
 
 ## 配置文件说明
 
-1. **seq_config.ini**：序列分析配置
-   - UNIPROT_API：UniProt API相关URL配置
-   - XML_NAMESPACES：XML解析命名空间
-
-2. **exclude_residues.ini**：定义需要排除的残基类型
+1. **exclude_residues.ini**：定义需要排除的残基类型
    - 在配体提取时用于过滤不需要考虑的残基
