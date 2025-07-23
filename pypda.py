@@ -21,7 +21,7 @@ from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from datetime import datetime
-from tqdm import tqdm # Import tqdm for progress bars
+from tqdm import tqdm
 
 # 过滤 PDB 构建警告
 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
