@@ -17,7 +17,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Zhou Deng',
     author_email='dengzho5068@foxmail.com',
-    url='https://gitee.com/coding_playground/py-pda',  # 替换为实际仓库URL
+    url='https://gitee.com/coding_playground/py-pda',
     packages=find_packages(),
     package_data={
         '': ['exclude_residues.ini'],
