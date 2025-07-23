@@ -1065,6 +1065,8 @@ class ProteinAnalyzer:
             if ct_lower in comment_type_map:
                 ct = comment_type_map[ct_lower]
                 info['comments'][ct].append(comment)
+                if ct == 'INTERACTION':
+                    info['interactions'].extend(comment.get('interactions', []))
 
         # 5. 蛋白质特征
         features = data.get('features', [])
@@ -1084,8 +1086,7 @@ class ProteinAnalyzer:
             elif ft in info['features']['detailed']: # 对于其他明确的详细类型
                 info['features']['detailed'][ft].append(feature)
 
-        # 6. 蛋白质相互作用
-        info['interactions'] = data.get('interactions', [])
+        # 6. 蛋白质相互作用(已在4. 功能和活性注释中提取)
 
         # 7. 关键词
         info['keywords'] = [kw.get('name') for kw in data.get('keywords', []) if kw.get('name')]
@@ -1182,7 +1183,7 @@ class ReportGenerator:
                 comments_data = info['comments']
                 comment_order = ['FUNCTION', 'CATALYTIC ACTIVITY', 'COFACTOR', 'ACTIVITY REGULATION',
                                  'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY',
-                                 'DISEASE', 'INTERACTION']
+                                 'DISEASE',]
                 
                 found_any_comment = False
                 for ct in comment_order:
@@ -1215,13 +1216,27 @@ class ReportGenerator:
                                 acronym = comment.get('disease', {}).get('acronym', 'N/A')
                                 f.write(f"  - **Disease**: {disease_name} ({acronym})\n")
                             elif ct == 'SUBCELLULAR LOCATION':
-                                for location in comment.get('locations', []):
+                                for location in comment.get('subcellularLocations', []):
                                     f.write(f"  - **Location**: {location.get('location', {}).get('value', 'N/A')}\n")
                                     for topology in location.get('topologies', []):
                                         f.write(f"    - **Topology**: {topology.get('value', 'N/A')}\n")
                                     for orientation in location.get('orientations', []):
                                         f.write(f"    - **Orientation**: {orientation.get('value', 'N/A')}\n")
-
+                            elif ct == 'COFACTOR':
+                                cofactors = comment.get('cofactors', [])
+                                if cofactors:
+                                    f.write("  - **Cofactors**:\n")
+                                    for cofactor in cofactors:
+                                        cofactor_name = cofactor.get('name', 'N/A')
+                                        # 可以选择性地添加ChEBI ID
+                                        chebi_id = cofactor.get('cofactorCrossReference', {}).get('id', 'N/A')
+                                        if chebi_id != 'N/A':
+                                            f.write(f"    - {cofactor_name} (ChEBI ID: {chebi_id})\n")
+                                        else:
+                                            f.write(f"    - {cofactor_name}\n")
+                                else:
+                                    f.write("  - 未找到详细辅因子信息。\n")
+          
                 if not found_any_comment:
                     f.write("- 未找到功能和活性注释信息。\n")
                 f.write("\n")
@@ -1252,11 +1267,22 @@ class ReportGenerator:
                             begin = loc.get('start', {}).get('value', 'N/A')
                             end = loc.get('end', {}).get('value', 'N/A')
                             
-                            feature_line = f"- {desc} (位置: {begin}-{end})"
-                            if dt in ['Modified residue', 'Mutagenesis']:
-                                original_aa = feature.get('original', 'N/A')
-                                feature_line += f", 原始氨基酸: {original_aa}"
+                            extra_info = []
+                            if dt == 'Mutagenesis':
+                                alt_seq_data = feature.get('alternativeSequence', {})
+                                original_seq = alt_seq_data.get('originalSequence')
+                                alternative_seqs = alt_seq_data.get('alternativeSequences', [])
+                                
+                                if original_seq:
+                                    mutation_str = f"原始: {original_seq}"
+                                    if alternative_seqs:
+                                        mutation_str += f" -> 突变: {', '.join(alternative_seqs)}"
+                                    extra_info.append(mutation_str)
                             
+                            feature_line = f"- {desc} (位置: {begin}-{end})"
+                            if extra_info:
+                                feature_line += f", {', '.join(extra_info)}" 
+
                             f.write(feature_line + "\n")
                 if not found_any_detailed_feature:
                     f.write("- 未找到详细特征信息。\n")
@@ -1267,16 +1293,15 @@ class ReportGenerator:
                 interactions = info['interactions']
                 if interactions:
                     for i, interaction in enumerate(interactions, 1):
-                        interactor = interaction.get('interactor', {})
-                        interactor_id = interactor.get('uniprotId', 'N/A')
-                        interactor_name = interactor.get('geneDisplayName', interactor.get('name', 'N/A'))
-                        experiments = interaction.get('experiments', 0)
-                        methods = [m.get('name', 'N/A') for m in interaction.get('methods', [])]
-
-                        f.write(f"- 相互作用蛋白 {i}: **{interactor_name}** (UniProt ID: {interactor_id})\n")
-                        f.write(f"  - 实验数量: {experiments}\n")
-                        if methods:
-                            f.write(f"  - 相互作用方法: {', '.join(methods)}\n")
+                        interactant_one = interaction.get('interactantOne', {})
+                        interactant_two = interaction.get('interactantTwo', {})
+                        # 提取主蛋白质的UniProt ID（通常是当前报告的蛋白质）
+                        main_protein_id = interactant_one.get('uniProtKBAccession', 'N/A')
+                        # 提取相互作用伙伴的UniProt ID和基因名称
+                        partner_id = interactant_two.get('uniProtKBAccession', 'N/A')
+                        partner_name = interactant_two.get('geneName', interactant_two.get('name', 'N/A')) # 优先使用geneName
+                        organism_differ = "是" if interaction.get('organismDiffer', False) else "否"
+                        f.write(f"- 相互作用 {i}: {main_protein_id} <-> **{partner_name}** (UniProt ID: {partner_id})\n")
                 else:
                     f.write("- 未找到相互作用信息\n")
                 f.write("\n")
