@@ -41,11 +41,11 @@ python pypda.py <工具> <命令> [参数]
 从UniProt批量获取蛋白质序列和结构域信息
 
 ```bash
-python pypda.py seq fetch <输入文件> <输出目录>
+python pypda.py seq fetch <genes> <output_dir>
 ```
 - **参数**：
-  - `input_file`: 包含HGNC基因名称的文本文件（每行一个基因名）
-  - `output_dir`: 输出目录，默认值为"protein_sequences"
+  - `genes`: 要下载的基因名称，用空格分隔（例如：BRCA1 TP53 EGFR）
+  - `output_dir`: 输出目录，用于保存FASTA序列文件和结构域信息报告，默认值为"protein_sequences"
 
 **示例**：
 ```bash
@@ -105,7 +105,7 @@ python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
 python pypda pdb <accession> pdb_output
 ```
 - **参数**：
-  - `accession`: UniProt蛋白质编号（例如：Q13547）
+  - `accession`: 蛋白质名称或基因名称（例如：HDAC1）
   - `output_dir`: 输出目录，默认值为"pdb_output"
 
 #### 3. UniProt数据处理工具 (`uniprot`)
@@ -119,11 +119,11 @@ python pypda pdb <accession> pdb_output
 python pypda.py uniprot fetch <accession>
 ```
 - **参数**：
-  - `accession`: UniProt蛋白质编号（例如：Q13547）
+  - `accession`: 蛋白质名称或基因名称（例如：TP53）
 
 **示例**：
 ```bash
-python pypda.py uniprot fetch Q13547
+python pypda.py uniprot fetch TP53
 ```
 
 ##### 3.2 分析JSON文件并生成报告 (`analyze`)
@@ -147,8 +147,8 @@ python pypda.py uniprot analyze -f Q13547_20250715.json
   - domain_info.md：结构域信息报告
 
 - **UniProt分析输出**：
-  - JSON文件：原始数据（命名格式：<accession>_<date>.json）
-  - Markdown报告：蛋白质详细信息（命名格式：<accession>_<date>.md）
+  - JSON文件：原始数据（命名格式：<UniPror_ID>_<date>.json）
+  - Markdown报告：蛋白质详细信息（命名格式：<UniPror_ID>_<date>.md）
 
 ## 配置文件说明
 
