@@ -147,8 +147,8 @@ python pypda.py uniprot analyze -f <UniProt_ID>_<date>.json
   - domain_info.md：结构域信息报告
 
 - **UniProt分析输出**：
-  - JSON文件：原始数据（命名格式：<UniPror_ID>_<date>.json）
-  - Markdown报告：蛋白质详细信息（命名格式：<UniPror_ID>_<date>.md）
+  - JSON文件：原始数据（命名格式：<UniProt_ID>_<date>.json）
+  - Markdown报告：蛋白质详细信息（命名格式：<UniProt_ID>_<date>.md）
 
 ## 配置文件说明
 
