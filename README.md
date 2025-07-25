@@ -137,7 +137,7 @@ python pypda.py uniprot analyze -f <json_file>
 
 **示例**：
 ```bash
-python pypda.py uniprot analyze -f Q13547_20250715.json
+python pypda.py uniprot analyze -f <UniProt_ID>_<date>.json
 ```
 
 ## 输出文件说明
