@@ -1,0 +1,206 @@
+# PyPDA: 蛋白质分析综合工具
+
+PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据检索功能的综合工具，旨在为生物信息学研究提供便捷的蛋白质数据分析解决方案。
+
+## 🚀 功能特点
+
+- **🎯 序列分析**：从UniProt批量获取蛋白质序列、提取特定区域、执行突变分析和序列比对
+- **🏗️ PDB处理**：下载PDB文件、提取配体信息并分类管理
+- **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
+- **🌐 Gradio界面**：提供直观的Web界面，无需命令行即可使用所有功能
+- **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
+
+## 📦 安装方法
+
+### 前提条件
+- Python 3.8+
+- 所需依赖库：参见requirements.txt
+
+### 安装步骤
+
+1. 克隆或下载本项目到本地
+
+2. 安装依赖包：
+```bash
+pip install -r requirements.txt
+```
+
+3. 配置文件设置：
+   - `exclude_residues.ini`：定义需要排除的残基
+   - `config.ini`：配置文件路径
+
+## 🎯 使用方法
+
+### 1. Gradio Web界面（推荐）
+
+启动直观的Web界面：
+```bash
+python gradio_app.py
+```
+
+访问 http://localhost:7860 即可使用所有功能。
+
+### 2. 命令行使用
+
+#### 基本命令格式
+```bash
+python pypda.py <工具> <命令> [参数]
+```
+
+#### 2.1 序列分析工具 (`seq`)
+
+用于蛋白质序列的获取、提取、突变和比对分析。
+
+##### 2.1.1 获取蛋白质序列和结构域信息 (`fetch`)
+从UniProt批量获取蛋白质序列和结构域信息
+
+```bash
+python pypda.py seq fetch <genes> [output_dir]
+```
+- **参数**：
+  - `genes`: 要下载的基因名称，用空格分隔（例如：BRCA1 TP53 EGFR）
+  - `output_dir`: 输出目录，默认值为`result/protein_sequences/基因名_YYYYMMDD_HHMMSS`
+
+**示例**：
+```bash
+python pypda.py seq fetch BRCA1 TP53 EGFR
+```
+
+##### 2.1.2 提取序列区域 (`extract`)
+从FASTA文件中提取指定位置的氨基酸序列
+
+```bash
+python pypda.py seq extract <fasta_file> <start> <end> [--output_dir <目录>]
+```
+- **参数**：
+  - `fasta_file`: 输入FASTA文件路径
+  - `start`: 起始位置（1-based）
+  - `end`: 结束位置（1-based）
+  - `--output_dir`: 输出目录，默认值为输入文件所在目录
+
+**示例**：
+```bash
+python pypda.py seq extract protein.fasta 10 50 --output_dir ./extract_result
+```
+
+##### 2.1.3 执行序列突变 (`mutate`)
+对蛋白质序列执行定点突变
+
+```bash
+python pypda.py seq mutate <fasta_file> --pos <位置列表> --aa <氨基酸列表> [--output_dir <目录>]
+```
+- **参数**：
+  - `fasta_file`: 输入FASTA文件路径
+  - `--pos`: 突变位置列表（空格分隔）
+  - `--aa`: 对应位置的新氨基酸（空格分隔）
+  - `--output_dir`: 输出目录，默认值为输入文件所在目录
+
+**示例**：
+```bash
+python pypda.py seq mutate protein.fasta --pos 15 23 --aa A K --output_dir ./mutate_result
+```
+
+##### 2.1.4 序列比对分析 (`align`)
+比较多个蛋白质序列的同源性
+
+```bash
+python pypda.py seq align <fasta_files>
+```
+- **参数**：
+  - `fasta_files`: 多个FASTA文件路径（空格分隔）
+
+**示例**：
+```bash
+python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
+```
+
+#### 2.2 PDB文件处理工具 (`pdb`)
+
+用于PDB文件的下载、配体提取和分类管理。
+
+```bash
+python pypda.py pdb <accession> [output_dir]
+```
+- **参数**：
+  - `accession`: 蛋白质名称或基因名称（例如：HDAC1）
+  - `output_dir`: 输出目录，默认值为`result/pdb_output/基因名_YYYYMMDD_HHMMSS`
+
+**示例**：
+```bash
+python pypda.py pdb HDAC1
+```
+
+#### 2.3 UniProt数据处理工具 (`uniprot`)
+
+用于从UniProt数据库获取蛋白质注释信息并生成分析报告。
+
+##### 2.3.1 获取UniProt数据并生成报告 (`fetch`)
+从UniProt API获取蛋白质数据并生成JSON和Markdown报告
+
+```bash
+python pypda.py uniprot fetch <accession> [output_dir]
+```
+- **参数**：
+  - `accession`: 蛋白质名称或基因名称（例如：TP53）
+  - `output_dir`: 输出目录，默认值为`result/uniprot_reports/基因名_YYYYMMDD_HHMMSS`
+
+**示例**：
+```bash
+python pypda.py uniprot fetch TP53
+```
+
+## 📁 目录结构说明
+
+项目采用统一的目录结构管理所有输出文件：
+
+```
+result/
+├── zip/                    # 所有下载zip文件统一存放
+├── extract_output/         # 序列提取结果
+├── mutate_output/          # 序列突变结果
+├── align_output/           # 序列比对结果
+├── pdb_output/             # PDB处理结果
+├── protein_sequences/      # 蛋白质序列结果
+├── uniprot_reports/        # UniProt数据结果
+└── temp/                   # 临时文件目录
+```
+
+## 📊 输出文件说明
+
+### 序列分析输出
+- **FASTA文件**：包含蛋白质序列
+- **domain_info.md**：结构域信息报告
+- **JSON文件**：原始UniProt数据（命名格式：`基因名_YYYYMMDD_HHMMSS.json`）
+- **Markdown报告**：蛋白质详细信息（命名格式：`基因名_YYYYMMDD_HHMMSS.md`）
+
+### PDB处理输出
+- **PDB文件**：蛋白质结构文件
+- **配体文件**：提取的配体信息
+- **分类报告**：配体分类结果
+
+## ⚙️ 配置文件说明
+
+1. **exclude_residues.ini**：定义需要排除的残基类型
+   - 在配体提取时用于过滤不需要考虑的残基
+
+2. **config.ini**：配置文件路径设置
+   - 定义各种工具的默认参数和路径
+
+## 🔧 开发信息
+
+- **项目路径**：`d:\playground\test\pypda`
+- **主要文件**：
+  - `gradio_app.py`：Gradio Web界面
+  - `pypda.py`：核心命令行工具
+  - `launch_gradio.py`：Gradio启动脚本
+
+## 📋 依赖库
+
+核心依赖：
+- biopython：生物信息学工具包
+- requests：HTTP请求库
+- gradio：Web界面框架
+- pandas：数据处理
+- configparser：配置文件解析
+
+完整依赖列表参见`requirements.txt`

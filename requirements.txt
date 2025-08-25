@@ -1,0 +1,24 @@
+# 生物信息学核心库
+biopython>=1.81  # 处理FASTA序列和生物学数据格式
+
+# 数据处理与分析
+pandas>=2.0.0    # 表格数据处理
+numpy>=1.24.0    # 数值计算基础
+scipy>=1.10.0    # 科学计算算法
+
+# 配置文件处理
+configparser>=5.3.0  # 解析exclude_residues.ini配置文件
+
+# 命令行交互
+argparse>=1.4.0  # 处理pypda.py的命令行参数
+
+# 项目打包与分发
+setuptools>=65.0.0
+wheel>=0.38.0
+
+# Web界面
+gradio>=4.0.0      # Web界面框架
+
+# 可选：可视化与测试
+matplotlib>=3.7.0  # 结果可视化（如序列特征图谱）
+pytest>=7.3.1      # 单元测试支持
