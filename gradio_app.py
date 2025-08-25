@@ -116,25 +116,27 @@ class PyPDAGradioInterface:
             # 生成统一时间戳
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # 保存上传的文件
-            input_path = os.path.join(self.temp_dir, "extract_temp", f"input_{timestamp}.fasta")
-            os.makedirs(os.path.dirname(input_path), exist_ok=True)
+            # 创建统一的工作目录，包含输入和输出文件
+            work_dir = os.path.join(self.temp_dir, "extract_output", f"extract_{timestamp}")
+            os.makedirs(work_dir, exist_ok=True)
+            
+            # 保存上传的文件到工作目录
+            input_filename = os.path.basename(fasta_file.name)
+            input_path = os.path.join(work_dir, f"input_{input_filename}")
             shutil.copy(fasta_file.name, input_path)
             
-            output_dir = os.path.join(self.temp_dir, "extract_output", f"extract_{timestamp}")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 执行提取命令
+            # 执行提取命令，输出也保存在同一目录
             cmd = [
                 sys.executable, "pypda.py", "seq", "extract",
                 input_path, str(start_pos), str(end_pos),
-                "--output_dir", output_dir
+                "--output_dir", work_dir
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             
-            # 查找输出文件
-            output_files = [f for f in os.listdir(output_dir) if f.endswith('.fasta')]
+            # 查找输出文件（排除输入文件）
+            all_files = [f for f in os.listdir(work_dir) if f.endswith('.fasta')]
+            output_files = [f for f in all_files if not f.startswith('input_')]
             
             # 创建zip文件
             zip_path = None
@@ -142,14 +144,14 @@ class PyPDAGradioInterface:
                 zip_path = shutil.make_archive(
                     os.path.join(self.zip_dir, f"extract_results_{timestamp}"), 
                     'zip', 
-                    output_dir
+                    work_dir
                 )
 
             summary = f"""
 ## 序列提取结果
-- 输入文件: {os.path.basename(fasta_file.name)}
+- 输入文件: {input_filename}
 - 提取位置: {start_pos}-{end_pos}
-- 输出目录: {output_dir}
+- 工作目录: {work_dir}
 - 输出文件: {len(output_files)} 个
 
 ### 命令输出
@@ -184,25 +186,27 @@ class PyPDAGradioInterface:
             # 生成统一时间戳
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
-            # 保存上传的文件
-            input_path = os.path.join(self.temp_dir, "mutate_temp", f"input_{timestamp}.fasta")
-            os.makedirs(os.path.dirname(input_path), exist_ok=True)
+            # 创建统一的工作目录，包含输入和输出文件
+            work_dir = os.path.join(self.temp_dir, "mutate_output", f"mutate_{timestamp}")
+            os.makedirs(work_dir, exist_ok=True)
+            
+            # 保存上传的文件到工作目录
+            input_filename = os.path.basename(fasta_file.name)
+            input_path = os.path.join(work_dir, f"input_{input_filename}")
             shutil.copy(fasta_file.name, input_path)
             
-            output_dir = os.path.join(self.temp_dir, "mutate_output", f"mutate_{timestamp}")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 执行突变命令
+            # 执行突变命令，输出也保存在同一目录
             cmd = [
                 sys.executable, "pypda.py", "seq", "mutate",
                 input_path,
                 "--pos"
-            ] + [str(p) for p in pos_list] + ["--aa"] + aa_list + ["--output_dir", output_dir]
+            ] + [str(p) for p in pos_list] + ["--aa"] + aa_list + ["--output_dir", work_dir]
             
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             
-            # 查找输出文件
-            output_files = [f for f in os.listdir(output_dir) if f.endswith('.fasta')]
+            # 查找输出文件（排除输入文件）
+            all_files = [f for f in os.listdir(work_dir) if f.endswith('.fasta')]
+            output_files = [f for f in all_files if not f.startswith('input_')]
             
             # 创建zip文件
             zip_path = None
@@ -210,15 +214,15 @@ class PyPDAGradioInterface:
                 zip_path = shutil.make_archive(
                     os.path.join(self.zip_dir, f"mutate_results_{timestamp}"), 
                     'zip', 
-                    output_dir
+                    work_dir
                 )
 
             summary = f"""
 ## 序列突变结果
-- 输入文件: {os.path.basename(fasta_file.name)}
+- 输入文件: {input_filename}
 - 突变位置: {positions}
 - 新氨基酸: {amino_acids}
-- 输出目录: {output_dir}
+- 工作目录: {work_dir}
 - 输出文件: {len(output_files)} 个
 
 ### 命令输出
