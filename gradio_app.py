@@ -10,17 +10,12 @@ import os
 import sys
 import tempfile
 import shutil
-import json
-from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Any
 import subprocess
-import time
-from datetime import datetime
 
 # 将当前目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pypda import PypdaApp, ConfigManager, Logger, CommonUtils
+from pypda import ConfigManager, Logger, CommonUtils
 
 class PyPDAGradioInterface:
     """Gradio界面类"""
@@ -40,7 +35,7 @@ class PyPDAGradioInterface:
         except Exception as e:
             print(f"清理临时文件时出错: {e}")
     
-    def get_protein_sequences(self, genes_text: str, progress=gr.Progress()) -> Tuple[str, Optional[str], Optional[str]]:
+    def get_protein_sequences(self, genes_text: str, progress=gr.Progress()):
         """获取蛋白质序列和结构域信息"""
         if not genes_text.strip():
             return "请输入基因名称", None, None
@@ -49,10 +44,8 @@ class PyPDAGradioInterface:
         if not genes:
             return "请输入有效的基因名称", None, None
         
-        # 创建按时间戳区分的文件夹
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = os.path.join(self.temp_dir, "protein_sequences", f"protein_{timestamp}")
-        os.makedirs(output_dir, exist_ok=True)
+        # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+        output_dir, timestamp = CommonUtils.get_output_dir("result", "protein_sequences", "protein")
         
         try:
             progress(0.1, desc="正在获取蛋白质序列...")
@@ -107,18 +100,14 @@ class PyPDAGradioInterface:
         except Exception as e:
             return f"执行出错: {str(e)}", None, None
     
-    def extract_sequence(self, fasta_file, start_pos: int, end_pos: int) -> Tuple[str, Optional[str]]:
+    def extract_sequence(self, fasta_file, start_pos: int, end_pos: int):
         """提取序列子片段"""
         if not fasta_file:
             return "请上传FASTA文件", None
         
         try:
-            # 生成统一时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # 创建统一的工作目录，包含输入和输出文件
-            work_dir = os.path.join(self.temp_dir, "extract_output", f"extract_{timestamp}")
-            os.makedirs(work_dir, exist_ok=True)
+            # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+            work_dir, timestamp = CommonUtils.get_output_dir("result", "extract_output", "extract")
             
             # 保存上传的文件到工作目录
             input_filename = os.path.basename(fasta_file.name)
@@ -134,25 +123,22 @@ class PyPDAGradioInterface:
             
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             
-            # 查找输出文件（排除输入文件）
-            all_files = [f for f in os.listdir(work_dir) if f.endswith('.fasta')]
-            output_files = [f for f in all_files if not f.startswith('input_')]
-            
-            # 创建zip文件
-            zip_path = None
-            if output_files:
-                zip_path = shutil.make_archive(
-                    os.path.join(self.zip_dir, f"extract_results_{timestamp}"), 
-                    'zip', 
-                    work_dir
-                )
+            # 直接将整个工作目录中的所有文件打包
+            zip_path = shutil.make_archive(
+                os.path.join(self.zip_dir, f"extract_results_{timestamp}"), 
+                'zip', 
+                work_dir
+            )
 
+            # 统计工作目录中的文件数量
+            total_files = len([f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))])
+            
             summary = f"""
 ## 序列提取结果
 - 输入文件: {input_filename}
 - 提取位置: {start_pos}-{end_pos}
 - 工作目录: {work_dir}
-- 输出文件: {len(output_files)} 个
+- 总文件数: {total_files} 个
 
 ### 命令输出
 ```
@@ -170,7 +156,7 @@ class PyPDAGradioInterface:
         except Exception as e:
             return f"执行出错: {str(e)}", None
     
-    def mutate_sequence(self, fasta_file, positions: str, amino_acids: str) -> Tuple[str, Optional[str]]:
+    def mutate_sequence(self, fasta_file, positions: str, amino_acids: str):
         """执行序列突变"""
         if not fasta_file:
             return "请上传FASTA文件", None
@@ -183,12 +169,8 @@ class PyPDAGradioInterface:
             if len(pos_list) != len(aa_list):
                 return "突变位置和氨基酸数量必须相同", None
             
-            # 生成统一时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # 创建统一的工作目录，包含输入和输出文件
-            work_dir = os.path.join(self.temp_dir, "mutate_output", f"mutate_{timestamp}")
-            os.makedirs(work_dir, exist_ok=True)
+            # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+            work_dir, timestamp = CommonUtils.get_output_dir("result", "mutate_output", "mutate")
             
             # 保存上传的文件到工作目录
             input_filename = os.path.basename(fasta_file.name)
@@ -204,26 +186,23 @@ class PyPDAGradioInterface:
             
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             
-            # 查找输出文件（排除输入文件）
-            all_files = [f for f in os.listdir(work_dir) if f.endswith('.fasta')]
-            output_files = [f for f in all_files if not f.startswith('input_')]
-            
-            # 创建zip文件
-            zip_path = None
-            if output_files:
-                zip_path = shutil.make_archive(
-                    os.path.join(self.zip_dir, f"mutate_results_{timestamp}"), 
-                    'zip', 
-                    work_dir
-                )
+            # 直接将整个工作目录中的所有文件打包
+            zip_path = shutil.make_archive(
+                os.path.join(self.zip_dir, f"mutate_results_{timestamp}"), 
+                'zip', 
+                work_dir
+            )
 
+            # 统计工作目录中的文件数量
+            total_files = len([f for f in os.listdir(work_dir) if os.path.isfile(os.path.join(work_dir, f))])
+            
             summary = f"""
 ## 序列突变结果
 - 输入文件: {input_filename}
 - 突变位置: {positions}
 - 新氨基酸: {amino_acids}
 - 工作目录: {work_dir}
-- 输出文件: {len(output_files)} 个
+- 总文件数: {total_files} 个
 
 ### 命令输出
 ```
@@ -241,18 +220,14 @@ class PyPDAGradioInterface:
         except Exception as e:
             return f"执行出错: {str(e)}", None
     
-    def align_sequences(self, fasta_files) -> Tuple[str, Optional[str]]:
+    def align_sequences(self, fasta_files):
         """序列比对"""
         if not fasta_files or len(fasta_files) < 2:
             return "请上传至少两个FASTA文件", None
         
         try:
-            # 生成统一时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # 保存上传的文件
-            align_temp_dir = os.path.join(self.temp_dir, "align_output", f"align_{timestamp}")
-            os.makedirs(align_temp_dir, exist_ok=True)
+            # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+            align_temp_dir, timestamp = CommonUtils.get_output_dir("result", "align_output", "align")
             
             file_paths = []
             for i, file in enumerate(fasta_files):
@@ -295,16 +270,14 @@ class PyPDAGradioInterface:
         except Exception as e:
             return f"执行出错: {str(e)}", None
     
-    def get_uniprot_data(self, protein_name: str, progress=gr.Progress()) -> Tuple[str, Optional[str], Optional[str]]:
+    def get_uniprot_data(self, protein_name: str, progress=gr.Progress()):
         """获取UniProt数据"""
         if not protein_name or not str(protein_name).strip():
             return "请输入蛋白质名称", None, None
         
         try:
-            # 生成统一时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = os.path.join(self.temp_dir, "uniprot_reports", f"uniprot_{timestamp}")
-            os.makedirs(output_dir, exist_ok=True)
+            # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+            output_dir, timestamp = CommonUtils.get_output_dir("result", "uniprot_reports", "uniprot")
             
             # 执行命令
             cmd = [
@@ -364,16 +337,14 @@ class PyPDAGradioInterface:
         except Exception as e:
             return f"执行出错: {str(e)}", None, None
     
-    def process_pdb(self, protein_name: str) -> Tuple[str, Optional[str]]:
+    def process_pdb(self, protein_name: str):
         """处理PDB文件"""
         if not protein_name or not str(protein_name).strip():
             return "请输入蛋白质名称", None
         
         try:
-            # 生成统一时间戳
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = os.path.join(self.temp_dir, "pdb_output", f"pdb_{timestamp}")
-            os.makedirs(output_dir, exist_ok=True)
+            # 使用CommonUtils.get_output_dir生成输出目录和时间戳
+            output_dir, timestamp = CommonUtils.get_output_dir("result", "pdb_output", "pdb")
             
             # 执行命令
             cmd = [
@@ -521,7 +492,7 @@ def create_interface():
             with gr.Row():
                 with gr.Column():
                     gr.Markdown("### PDB文件处理\n下载和处理PDB结构文件\n")
-                    uniprot_input = gr.Textbox(
+                    pdb_protein_input = gr.Textbox(
                         label="蛋白质名称",
                         placeholder="输入蛋白质名称 (例如: BRCA1, TP53)"
                     )
@@ -541,15 +512,6 @@ def create_interface():
         4. **序列比对**: 上传多个FASTA文件进行两两比对
         5. **UniProt数据**: 获取指定蛋白质的详细UniProt信息
         6. **PDB处理**: 下载和处理PDB结构文件
-
-        📁 文件存储结构:
-           📂 result/
-              📂 protein_sequences/ - 蛋白质序列结果
-              📂 extract_output/ - 序列提取结果
-              📂 mutate_output/ - 序列突变结果
-              📂 align_output/ - 序列比对结果
-              📂 uniprot_reports/ - UniProt数据报告
-              📂 pdb_output/ - PDB文件处理结果
 
         ### ⚠️ 注意事项
 
@@ -591,7 +553,7 @@ def create_interface():
         
         process_pdb_btn.click(
             interface.process_pdb,
-            inputs=[uniprot_input],
+            inputs=[pdb_protein_input],
             outputs=[pdb_summary, pdb_download]
         )
     
