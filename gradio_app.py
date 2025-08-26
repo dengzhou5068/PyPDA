@@ -560,10 +560,18 @@ def create_interface():
     return app
 
 if __name__ == "__main__":
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='PyPDA Gradio Web界面')
+    parser.add_argument('--port', type=int, default=7860, help='服务器端口，默认7860')
+    args = parser.parse_args()
+    port = args.port
+    
     app = create_interface()
     app.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=port,
         share=False,
         debug=True
     )
