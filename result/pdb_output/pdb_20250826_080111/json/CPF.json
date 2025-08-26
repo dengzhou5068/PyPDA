@@ -1,0 +1,1091 @@
+{
+    "chem_comp": {
+        "formula": "C17 H18 F N3 O3",
+        "formula_weight": 331.342,
+        "id": "CPF",
+        "name": "1-CYCLOPROPYL-6-FLUORO-4-OXO-7-PIPERAZIN-1-YL-1,4-DIHYDROQUINOLINE-3-CARBOXYLIC ACID",
+        "pdbx_ambiguous_flag": "N",
+        "pdbx_formal_charge": 0,
+        "pdbx_initial_date": "2003-04-09T00:00:00+0000",
+        "pdbx_modified_date": "2020-06-17T00:00:00+0000",
+        "pdbx_processing_site": "RCSB",
+        "pdbx_release_status": "REL",
+        "three_letter_code": "CPF",
+        "type": "non-polymer"
+    },
+    "pdbx_chem_comp_audit": [
+        {
+            "action_type": "Create component",
+            "comp_id": "CPF",
+            "date": "2003-04-09T00:00:00+0000",
+            "ordinal": 1
+        },
+        {
+            "action_type": "Modify descriptor",
+            "comp_id": "CPF",
+            "date": "2011-06-04T00:00:00+0000",
+            "ordinal": 2
+        },
+        {
+            "action_type": "Modify synonyms",
+            "comp_id": "CPF",
+            "date": "2020-06-05T00:00:00+0000",
+            "ordinal": 3
+        }
+    ],
+    "pdbx_chem_comp_descriptor": [
+        {
+            "comp_id": "CPF",
+            "descriptor": "O=C(O)C=3C(=O)c1c(cc(c(F)c1)N2CCNCC2)N(C=3)C4CC4",
+            "program": "ACDLabs",
+            "program_version": "12.01",
+            "type": "SMILES"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "OC(=O)C1=CN(C2CC2)c3cc(N4CCNCC4)c(F)cc3C1=O",
+            "program": "CACTVS",
+            "program_version": "3.370",
+            "type": "SMILES_CANONICAL"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "OC(=O)C1=CN(C2CC2)c3cc(N4CCNCC4)c(F)cc3C1=O",
+            "program": "CACTVS",
+            "program_version": "3.370",
+            "type": "SMILES"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "c1c2c(cc(c1F)N3CCNCC3)N(C=C(C2=O)C(=O)O)C4CC4",
+            "program": "OpenEye OEToolkits",
+            "program_version": "1.7.0",
+            "type": "SMILES_CANONICAL"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "c1c2c(cc(c1F)N3CCNCC3)N(C=C(C2=O)C(=O)O)C4CC4",
+            "program": "OpenEye OEToolkits",
+            "program_version": "1.7.0",
+            "type": "SMILES"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "InChI=1S/C17H18FN3O3/c18-13-7-11-14(8-15(13)20-5-3-19-4-6-20)21(10-1-2-10)9-12(16(11)22)17(23)24/h7-10,19H,1-6H2,(H,23,24)",
+            "program": "InChI",
+            "program_version": "1.03",
+            "type": "InChI"
+        },
+        {
+            "comp_id": "CPF",
+            "descriptor": "MYSWGUAQZAJSOK-UHFFFAOYSA-N",
+            "program": "InChI",
+            "program_version": "1.03",
+            "type": "InChIKey"
+        }
+    ],
+    "pdbx_chem_comp_identifier": [
+        {
+            "comp_id": "CPF",
+            "identifier": "1-cyclopropyl-6-fluoro-4-oxo-7-(piperazin-1-yl)-1,4-dihydroquinoline-3-carboxylic acid",
+            "program": "ACDLabs",
+            "program_version": "12.01",
+            "type": "SYSTEMATIC NAME"
+        },
+        {
+            "comp_id": "CPF",
+            "identifier": "1-cyclopropyl-6-fluoro-4-oxo-7-piperazin-1-yl-quinoline-3-carboxylic acid",
+            "program": "OpenEye OEToolkits",
+            "program_version": "1.7.0",
+            "type": "SYSTEMATIC NAME"
+        }
+    ],
+    "rcsb_chem_comp_annotation": [
+        {
+            "annotation_id": "J01RA11",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin and tinidazole",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "J",
+                    "name": "ANTIINFECTIVES FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 1,
+                    "id": "J01",
+                    "name": "ANTIBACTERIALS FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 2,
+                    "id": "J01R",
+                    "name": "COMBINATIONS OF ANTIBACTERIALS"
+                },
+                {
+                    "depth": 3,
+                    "id": "J01RA",
+                    "name": "Combinations of antibacterials"
+                },
+                {
+                    "depth": 4,
+                    "id": "J01RA11",
+                    "name": "ciprofloxacin and tinidazole"
+                }
+            ]
+        },
+        {
+            "annotation_id": "S03AA07",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "S",
+                    "name": "SENSORY ORGAN DRUGS"
+                },
+                {
+                    "depth": 1,
+                    "id": "S03",
+                    "name": "OPHTHALMOLOGICAL AND OTOLOGICAL PREPARATIONS"
+                },
+                {
+                    "depth": 2,
+                    "id": "S03A",
+                    "name": "ANTIINFECTIVES, OPHTHALMOLOGIC AND OTOLOGIC"
+                },
+                {
+                    "depth": 3,
+                    "id": "S03AA",
+                    "name": "Antiinfectives"
+                },
+                {
+                    "depth": 4,
+                    "id": "S03AA07",
+                    "name": "ciprofloxacin"
+                }
+            ]
+        },
+        {
+            "annotation_id": "J01MA02",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "J",
+                    "name": "ANTIINFECTIVES FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 1,
+                    "id": "J01",
+                    "name": "ANTIBACTERIALS FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 2,
+                    "id": "J01M",
+                    "name": "QUINOLONE ANTIBACTERIALS"
+                },
+                {
+                    "depth": 3,
+                    "id": "J01MA",
+                    "name": "Fluoroquinolone antibacterials, systemic"
+                },
+                {
+                    "depth": 4,
+                    "id": "J01MA02",
+                    "name": "ciprofloxacin"
+                }
+            ]
+        },
+        {
+            "annotation_id": "S02AA15",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "S",
+                    "name": "SENSORY ORGAN DRUGS"
+                },
+                {
+                    "depth": 1,
+                    "id": "S02",
+                    "name": "OTOLOGICALS"
+                },
+                {
+                    "depth": 2,
+                    "id": "S02A",
+                    "name": "ANTIINFECTIVE DRUGS, OTOLOGIC"
+                },
+                {
+                    "depth": 3,
+                    "id": "S02AA",
+                    "name": "Antiinfectives"
+                },
+                {
+                    "depth": 4,
+                    "id": "S02AA15",
+                    "name": "ciprofloxacin"
+                }
+            ]
+        },
+        {
+            "annotation_id": "J01RA10",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin and metronidazole",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "J",
+                    "name": "ANTIINFECTIVES FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 1,
+                    "id": "J01",
+                    "name": "ANTIBACTERIALS FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 2,
+                    "id": "J01R",
+                    "name": "COMBINATIONS OF ANTIBACTERIALS"
+                },
+                {
+                    "depth": 3,
+                    "id": "J01RA",
+                    "name": "Combinations of antibacterials"
+                },
+                {
+                    "depth": 4,
+                    "id": "J01RA10",
+                    "name": "ciprofloxacin and metronidazole"
+                }
+            ]
+        },
+        {
+            "annotation_id": "J01RA12",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin and ornidazole",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "J",
+                    "name": "ANTIINFECTIVES FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 1,
+                    "id": "J01",
+                    "name": "ANTIBACTERIALS FOR SYSTEMIC USE"
+                },
+                {
+                    "depth": 2,
+                    "id": "J01R",
+                    "name": "COMBINATIONS OF ANTIBACTERIALS"
+                },
+                {
+                    "depth": 3,
+                    "id": "J01RA",
+                    "name": "Combinations of antibacterials"
+                },
+                {
+                    "depth": 4,
+                    "id": "J01RA12",
+                    "name": "ciprofloxacin and ornidazole"
+                }
+            ]
+        },
+        {
+            "annotation_id": "S01AE03",
+            "assignment_version": "5.1",
+            "description": "ATC matching InChIKey in DrugBank",
+            "name": "ciprofloxacin",
+            "provenance_source": "DrugBank",
+            "type": "ATC",
+            "annotation_lineage": [
+                {
+                    "id": "S",
+                    "name": "SENSORY ORGAN DRUGS"
+                },
+                {
+                    "depth": 1,
+                    "id": "S01",
+                    "name": "OPHTHALMOLOGICALS"
+                },
+                {
+                    "depth": 2,
+                    "id": "S01A",
+                    "name": "ANTIINFECTIVE OPHTHALMOLOGICS"
+                },
+                {
+                    "depth": 3,
+                    "id": "S01AE",
+                    "name": "Fluoroquinolone antiinfectives, ophthalmologic"
+                },
+                {
+                    "depth": 4,
+                    "id": "S01AE03",
+                    "name": "ciprofloxacin"
+                }
+            ]
+        }
+    ],
+    "rcsb_chem_comp_container_identifiers": {
+        "atc_codes": [
+            "J01RA11",
+            "S03AA07",
+            "J01MA02",
+            "S02AA15",
+            "J01RA10",
+            "J01RA12",
+            "S01AE03"
+        ],
+        "comp_id": "CPF",
+        "drugbank_id": "DB00537",
+        "rcsb_id": "CPF"
+    },
+    "rcsb_chem_comp_descriptor": {
+        "in_ch_i": "InChI=1S/C17H18FN3O3/c18-13-7-11-14(8-15(13)20-5-3-19-4-6-20)21(10-1-2-10)9-12(16(11)22)17(23)24/h7-10,19H,1-6H2,(H,23,24)",
+        "in_ch_ikey": "MYSWGUAQZAJSOK-UHFFFAOYSA-N",
+        "smiles": "c1c2c(cc(c1F)N3CCNCC3)N(C=C(C2=O)C(=O)O)C4CC4",
+        "comp_id": "CPF",
+        "smilesstereo": "c1c2c(cc(c1F)N3CCNCC3)N(C=C(C2=O)C(=O)O)C4CC4"
+    },
+    "rcsb_chem_comp_info": {
+        "atom_count": 42,
+        "atom_count_chiral": 0,
+        "atom_count_heavy": 24,
+        "bond_count": 45,
+        "bond_count_aromatic": 6,
+        "comp_id": "CPF",
+        "initial_deposition_date": "2003-04-09T00:00:00+0000",
+        "initial_release_date": "2003-05-13T00:00:00+0000",
+        "release_status": "REL",
+        "revision_date": "2020-06-05T00:00:00+0000"
+    },
+    "rcsb_chem_comp_related": [
+        {
+            "comp_id": "CPF",
+            "ordinal": 1,
+            "related_mapping_method": "matching InChIKey in DrugBank",
+            "resource_accession_code": "DB00537",
+            "resource_name": "DrugBank"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 2,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "PEFZIL01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 3,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "COVPIN03",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 4,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "COVPIN04",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 5,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "COVPIN01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 6,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "BAFKEA",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 7,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHIP02",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 8,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHIP",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 9,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHOV",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 10,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHUB",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 11,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHIP03",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 12,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "COVPIN05",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 13,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "NUWFUI",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 14,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "OXAYUJ",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 15,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "MUGCEZ",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 16,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "DOFWUT01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 17,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "DOFXOO",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 18,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KOFFAO",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 19,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHIP01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 20,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QABTOF",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 21,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "ORUZAD",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 22,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "PUNMUJ",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 23,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QUKHUB01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 24,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KEWSIR",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 25,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "OSUQEA",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 26,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "BONZUA",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 27,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "IDARUA",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 28,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "ORUYIK",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 29,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "ORUYOQ",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 30,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "HUSTUN",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 31,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "PUNMIX",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 32,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "MUGCID01",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 33,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KAFDAX",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 34,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "DOFXII",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 35,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "MUGCID",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 36,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KOFFES",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 37,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "POTLAN",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 38,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KEWSOX",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 39,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "KEWSEN",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 40,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "TEKBIU",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 41,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "PEFZIL",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 42,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "QIBBAE",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 43,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "ENODOB",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 44,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "HUSVEZ",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 45,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "JIRYAL",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 46,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "HUSVAV",
+            "resource_name": "CCDC/CSD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 47,
+            "related_mapping_method": "assigned by PDB",
+            "resource_accession_code": "4502705",
+            "resource_name": "COD"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 48,
+            "related_mapping_method": "matching InChIKey in PubChem",
+            "resource_accession_code": "4011971",
+            "resource_name": "PubChem"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 49,
+            "related_mapping_method": "matching InChIKey in PubChem",
+            "resource_accession_code": "2764",
+            "resource_name": "PubChem"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 50,
+            "related_mapping_method": "assigned by PubChem resource",
+            "resource_accession_code": "85721-33-1",
+            "resource_name": "CAS"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 51,
+            "related_mapping_method": "assigned by PubChem resource",
+            "resource_accession_code": "CHEBI:100241",
+            "resource_name": "ChEBI"
+        },
+        {
+            "comp_id": "CPF",
+            "ordinal": 52,
+            "related_mapping_method": "assigned by PubChem resource",
+            "resource_accession_code": "CHEMBL8",
+            "resource_name": "ChEMBL"
+        }
+    ],
+    "rcsb_chem_comp_synonyms": [
+        {
+            "comp_id": "CPF",
+            "name": "1-CYCLOPROPYL-6-FLUORO-4-OXO-7-PIPERAZIN-1-YL-1,4-DIHYDROQUINOLINE-3-CARBOXYLIC ACID",
+            "ordinal": 1,
+            "provenance_source": "PDB Reference Data",
+            "type": "Preferred Name"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "ciprofloxacin",
+            "ordinal": 2,
+            "provenance_source": "PDB Reference Data",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-4-oxo-7-(piperazin-1-yl)-1,4-dihydroquinoline-3-carboxylic acid",
+            "ordinal": 3,
+            "provenance_source": "ACDLabs",
+            "type": "Systematic Name"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-4-oxo-7-piperazin-1-yl-quinoline-3-carboxylic acid",
+            "ordinal": 4,
+            "provenance_source": "OpenEye OEToolkits",
+            "type": "Systematic Name"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-Cyclopropyl-6-fluoro-4-oxo-7-piperazin-1-yl-1,4-dihydro-quinoline-3-carboxylic acid",
+            "ordinal": 5,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacine",
+            "ordinal": 6,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-4-oxo-7-piperazin-1-ylquinoline-3-carboxylic acid",
+            "ordinal": 7,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-4-oxo-7-(piperazin-1-yl)-1,4-dihydroquinoline-3-carboxylic acid",
+            "ordinal": 8,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-1,4-dihydro-4-oxo-7-(1-piperazinyl)-3-quinolinecarboxylic acid",
+            "ordinal": 9,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-cyclopropyl-6-fluoro-7-hexahydro-1-pyrazinyl-4-oxo-1,4-dihydro-3-quinolinecarboxylic acid",
+            "ordinal": 10,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacino",
+            "ordinal": 11,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacin",
+            "ordinal": 12,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacin lactate",
+            "ordinal": 13,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "1-Cyclopropyl-6-fluoro-7-(4-methyl-piperazin-1-yl)-4-oxo-1,4-dihydro-quinoline-3-carboxylic acid",
+            "ordinal": 14,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacin hydrochloride",
+            "ordinal": 15,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "CPF",
+            "name": "Ciprofloxacinum",
+            "ordinal": 16,
+            "provenance_source": "DrugBank",
+            "type": "Synonym"
+        }
+    ],
+    "rcsb_chem_comp_target": [
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA topoisomerase 4 subunit A",
+            "ordinal": 1,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P43702",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA gyrase subunit B",
+            "ordinal": 2,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P0A0K8",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "modulator"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "Thymidylate synthase",
+            "ordinal": 3,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P12461",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA gyrase subunit A",
+            "ordinal": 4,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P43700",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA gyrase subunit A",
+            "ordinal": 5,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P20831",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "modulator"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA topoisomerase 2-alpha",
+            "ordinal": 6,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P11388",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "Voltage-gated inwardly rectifying potassium channel KCNH2",
+            "ordinal": 7,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "Q12809",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA gyrase subunit A",
+            "ordinal": 8,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P0AES4",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA topoisomerase 4 subunit A",
+            "ordinal": 9,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P0C1U9",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA topoisomerase 4 subunit B",
+            "ordinal": 10,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "Q59192",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "DNA gyrase subunit A",
+            "ordinal": 11,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P05653",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "Multidrug resistance protein MdtK",
+            "ordinal": 12,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "C3T8E2",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "target",
+            "name": "Gyrase A",
+            "ordinal": 13,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "B4YQT9",
+            "reference_database_name": "UniProt"
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "enzyme",
+            "name": "Cytochrome P450 1A2",
+            "ordinal": 14,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P05177",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "enzyme",
+            "name": "Cytochrome P450 3A4",
+            "ordinal": 15,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P08684",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "enzyme",
+            "name": "Cytochrome P450 3A5",
+            "ordinal": 16,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P20815",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "enzyme",
+            "name": "Cytochrome P450 3A7",
+            "ordinal": 17,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P24462",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "carrier",
+            "name": "Albumin",
+            "ordinal": 18,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P02768",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "binder"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "transporter",
+            "name": "ATP-dependent translocase ABCB1",
+            "ordinal": 19,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "P08183",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "substrate"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "transporter",
+            "name": "Multidrug and toxin extrusion protein 1",
+            "ordinal": 20,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "Q96FL8",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "substrate",
+                "inhibitor"
+            ]
+        },
+        {
+            "comp_id": "CPF",
+            "interaction_type": "transporter",
+            "name": "Multidrug and toxin extrusion protein 2",
+            "ordinal": 21,
+            "provenance_source": "DrugBank",
+            "reference_database_accession_code": "Q86VL8",
+            "reference_database_name": "UniProt",
+            "target_actions": [
+                "inhibitor"
+            ]
+        }
+    ],
+    "rcsb_id": "CPF"
+}

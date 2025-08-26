@@ -1,0 +1,172 @@
+{
+    "chem_comp": {
+        "formula": "C27 H34 N4 O5",
+        "formula_weight": 494.583,
+        "id": "A1AAM",
+        "name": "(2S,2'S)-3,3'-[carbonylbis(azanediyl-3,1-phenylene)]bis{2-[(3R)-pyrrolidin-1-ium-3-yl]propanoate}",
+        "pdbx_ambiguous_flag": "N",
+        "pdbx_formal_charge": 0,
+        "pdbx_initial_date": "2023-12-17T00:00:00+0000",
+        "pdbx_modified_date": "2024-05-03T00:00:00+0000",
+        "pdbx_processing_site": "RCSB",
+        "pdbx_release_status": "REL",
+        "three_letter_code": "A1AAM",
+        "type": "non-polymer"
+    },
+    "pdbx_chem_comp_audit": [
+        {
+            "action_type": "Create component",
+            "comp_id": "A1AAM",
+            "date": "2023-12-17T00:00:00+0000",
+            "ordinal": 1
+        },
+        {
+            "action_type": "Modify charge",
+            "comp_id": "A1AAM",
+            "date": "2024-04-30T00:00:00+0000",
+            "ordinal": 2
+        },
+        {
+            "action_type": "Modify synonyms",
+            "comp_id": "A1AAM",
+            "date": "2024-05-01T00:00:00+0000",
+            "ordinal": 3
+        },
+        {
+            "action_type": "Initial release",
+            "comp_id": "A1AAM",
+            "date": "2024-05-08T00:00:00+0000",
+            "ordinal": 4
+        }
+    ],
+    "pdbx_chem_comp_descriptor": [
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "O=C(O)C(Cc1cc(ccc1)NC(=O)Nc1cc(CC(C2CCNC2)C(=O)O)ccc1)C1CCNC1",
+            "program": "ACDLabs",
+            "program_version": "12.01",
+            "type": "SMILES"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "InChI=1S/C27H34N4O5/c32-25(33)23(19-7-9-28-15-19)13-17-3-1-5-21(11-17)30-27(36)31-22-6-2-4-18(12-22)14-24(26(34)35)20-8-10-29-16-20/h1-6,11-12,19-20,23-24,28-29H,7-10,13-16H2,(H,32,33)(H,34,35)(H2,30,31,36)/t19-,20-,23-,24-/m0/s1",
+            "program": "InChI",
+            "program_version": "1.06",
+            "type": "InChI"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "HICCAHJBPZUBFA-TZYAJKAJSA-N",
+            "program": "InChI",
+            "program_version": "1.06",
+            "type": "InChIKey"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "OC(=O)[C@@H](Cc1cccc(NC(=O)Nc2cccc(C[C@@H]([C@H]3CCNC3)C(O)=O)c2)c1)[C@H]4CCNC4",
+            "program": "CACTVS",
+            "program_version": "3.385",
+            "type": "SMILES_CANONICAL"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "OC(=O)[CH](Cc1cccc(NC(=O)Nc2cccc(C[CH]([CH]3CCNC3)C(O)=O)c2)c1)[CH]4CCNC4",
+            "program": "CACTVS",
+            "program_version": "3.385",
+            "type": "SMILES"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "c1cc(cc(c1)NC(=O)Nc2cccc(c2)C[C@@H]([C@H]3CCNC3)C(=O)O)C[C@@H]([C@H]4CCNC4)C(=O)O",
+            "program": "OpenEye OEToolkits",
+            "program_version": "2.0.7",
+            "type": "SMILES_CANONICAL"
+        },
+        {
+            "comp_id": "A1AAM",
+            "descriptor": "c1cc(cc(c1)NC(=O)Nc2cccc(c2)CC(C3CCNC3)C(=O)O)CC(C4CCNC4)C(=O)O",
+            "program": "OpenEye OEToolkits",
+            "program_version": "2.0.7",
+            "type": "SMILES"
+        }
+    ],
+    "pdbx_chem_comp_identifier": [
+        {
+            "comp_id": "A1AAM",
+            "identifier": "(2S,2'S)-3,3'-[carbonylbis(azanediyl-3,1-phenylene)]bis{2-[(3R)-pyrrolidin-3-yl]propanoic acid}",
+            "program": "ACDLabs",
+            "program_version": "12.01",
+            "type": "SYSTEMATIC NAME"
+        },
+        {
+            "comp_id": "A1AAM",
+            "identifier": "(2~{S})-3-[3-[[3-[(2~{S})-3-oxidanyl-3-oxidanylidene-2-[(3~{R})-pyrrolidin-3-yl]propyl]phenyl]carbamoylamino]phenyl]-2-[(3~{R})-pyrrolidin-3-yl]propanoic acid",
+            "program": "OpenEye OEToolkits",
+            "program_version": "2.0.7",
+            "type": "SYSTEMATIC NAME"
+        }
+    ],
+    "rcsb_chem_comp_container_identifiers": {
+        "comp_id": "A1AAM",
+        "rcsb_id": "A1AAM"
+    },
+    "rcsb_chem_comp_descriptor": {
+        "in_ch_i": "InChI=1S/C27H34N4O5/c32-25(33)23(19-7-9-28-15-19)13-17-3-1-5-21(11-17)30-27(36)31-22-6-2-4-18(12-22)14-24(26(34)35)20-8-10-29-16-20/h1-6,11-12,19-20,23-24,28-29H,7-10,13-16H2,(H,32,33)(H,34,35)(H2,30,31,36)/t19-,20-,23-,24-/m0/s1",
+        "in_ch_ikey": "HICCAHJBPZUBFA-TZYAJKAJSA-N",
+        "smiles": "c1cc(cc(c1)NC(=O)Nc2cccc(c2)CC(C3CCNC3)C(=O)O)CC(C4CCNC4)C(=O)O",
+        "comp_id": "A1AAM",
+        "smilesstereo": "c1cc(cc(c1)NC(=O)Nc2cccc(c2)C[C@@H]([C@H]3CCNC3)C(=O)O)C[C@@H]([C@H]4CCNC4)C(=O)O"
+    },
+    "rcsb_chem_comp_info": {
+        "atom_count": 70,
+        "atom_count_chiral": 4,
+        "atom_count_heavy": 36,
+        "bond_count": 73,
+        "bond_count_aromatic": 12,
+        "comp_id": "A1AAM",
+        "initial_deposition_date": "2023-12-17T00:00:00+0000",
+        "initial_release_date": "2024-05-08T00:00:00+0000",
+        "release_status": "REL",
+        "revision_date": "2024-05-08T00:00:00+0000"
+    },
+    "rcsb_chem_comp_related": [
+        {
+            "comp_id": "A1AAM",
+            "ordinal": 1,
+            "related_mapping_method": "matching InChIKey in PubChem",
+            "resource_accession_code": "169757542",
+            "resource_name": "PubChem"
+        }
+    ],
+    "rcsb_chem_comp_synonyms": [
+        {
+            "comp_id": "A1AAM",
+            "name": "(2S,2'S)-3,3'-[carbonylbis(azanediyl-3,1-phenylene)]bis{2-[(3R)-pyrrolidin-1-ium-3-yl]propanoate}",
+            "ordinal": 1,
+            "provenance_source": "PDB Reference Data",
+            "type": "Preferred Name"
+        },
+        {
+            "comp_id": "A1AAM",
+            "name": "LY3441732",
+            "ordinal": 2,
+            "provenance_source": "PDB Reference Data",
+            "type": "Synonym"
+        },
+        {
+            "comp_id": "A1AAM",
+            "name": "(2S,2'S)-3,3'-[carbonylbis(azanediyl-3,1-phenylene)]bis{2-[(3R)-pyrrolidin-3-yl]propanoic acid}",
+            "ordinal": 3,
+            "provenance_source": "ACDLabs",
+            "type": "Systematic Name"
+        },
+        {
+            "comp_id": "A1AAM",
+            "name": "(2~{S})-3-[3-[[3-[(2~{S})-3-oxidanyl-3-oxidanylidene-2-[(3~{R})-pyrrolidin-3-yl]propyl]phenyl]carbamoylamino]phenyl]-2-[(3~{R})-pyrrolidin-3-yl]propanoic acid",
+            "ordinal": 4,
+            "provenance_source": "OpenEye OEToolkits",
+            "type": "Systematic Name"
+        }
+    ],
+    "rcsb_id": "A1AAM"
+}
