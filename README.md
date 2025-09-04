@@ -188,7 +188,6 @@ result/
 
 ## 🔧 开发信息
 
-- **项目路径**：`d:\playground\test\pypda`
 - **主要文件**：
   - `gradio_app.py`：Gradio Web界面
   - `pypda.py`：核心命令行工具
