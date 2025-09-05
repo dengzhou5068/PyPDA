@@ -6,6 +6,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 
 - **🎯 序列分析**：从UniProt批量获取蛋白质序列、提取特定区域、执行突变分析和序列比对
 - **🏗️ PDB处理**：下载PDB文件、提取配体信息并分类管理
+- **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
 - **🌐 Gradio界面**：提供直观的Web界面，无需命令行即可使用所有功能
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
@@ -116,18 +117,23 @@ python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
 
 #### 2.2 PDB文件处理工具 (`pdb`)
 
-用于PDB文件的下载、配体提取和分类管理。
+用于PDB文件的下载、配体提取和分类管理，以及基于小分子SMILES的结构相似性计算。
 
 ```bash
-python pypda.py pdb <accession> [output_dir]
+python pypda.py pdb <accession> [output_dir] [--smile <smiles>]
 ```
 - **参数**：
   - `accession`: 蛋白质名称或基因名称（例如：HDAC1）
   - `output_dir`: 输出目录，默认值为`result/pdb_output/基因名_YYYYMMDD_HHMMSS`
+  - `--smile`: 可选，小分子SMILES字符串，用于计算与PDB结构中配体的结构相似性
 
 **示例**：
 ```bash
+# 基本用法：下载PDB文件并提取配体信息
 python pypda.py pdb HDAC1
+
+# 高级用法：下载PDB文件并计算结构相似性
+python pypda.py pdb HDAC1 --smile "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
 ```
 
 #### 2.3 UniProt数据处理工具 (`uniprot`)
@@ -177,6 +183,7 @@ result/
 - **PDB文件**：蛋白质结构文件
 - **配体文件**：提取的配体信息
 - **分类报告**：配体分类结果
+- **结构相似性报告**：当使用`--smile`参数时生成，包含与输入小分子最相似的PDB结构排名
 
 ## ⚙️ 配置文件说明
 
@@ -201,5 +208,8 @@ result/
 - gradio：Web界面框架
 - pandas：数据处理
 - configparser：配置文件解析
+- rdkit：用于分子结构处理和相似性计算（需额外安装）
 
 完整依赖列表参见`requirements.txt`
+
+> **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smile`参数的结构相似性计算功能。
