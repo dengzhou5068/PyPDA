@@ -1,3 +1,4 @@
+# 标准库导入
 import argparse
 import configparser
 import io
@@ -7,6 +8,13 @@ import requests
 import shutil
 import sys
 import warnings
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
+from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict, Union
+
+# 第三方库导入
 from Bio import SeqIO
 from Bio.Align import PairwiseAligner
 from Bio.PDB.MMCIFParser import MMCIFParser
@@ -14,14 +22,15 @@ from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from Bio.PDB.PDBList import PDBList
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-from functools import lru_cache
-from pathlib import Path
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
-from typing import List, Dict, Tuple, Generator, Optional, Set, Any, TypedDict, Union
 from urllib3.util.retry import Retry
+
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem, DataStructs
+except ImportError:
+    warnings.warn("RDKit库未正确安装，将无法使用分子结构相似性计算功能。")
 
 # 过滤 PDB 构建警告
 warnings.filterwarnings("ignore", category=PDBConstructionWarning)
@@ -520,6 +529,7 @@ class PDBProcessor:
         self.logger = logger
         self.uniprot_api = uniprot_api
         self.exclude_residues = self.parse_exclude_residues()
+        self.rdkit_available = 'rdkit' in sys.modules
 
     def parse_exclude_residues(self) -> List[str]:
         """解析排除残基的配置文件 `exclude_residues.ini`。
@@ -776,12 +786,111 @@ class PDBProcessor:
             self.logger.log_error(f"创建或写入 chemical_components_info.md 文件失败: {e}", self.config.error_log_path)
             raise
 
-    def process(self, uniprot_id: str, output_dir: str) -> None:
+    def calculate_similarity_and_rank_pdbs(self, user_smiles: str, output_dir: str, top_n: int = 5) -> List[Tuple[str, float]]:
+        """计算用户输入的小分子SMILES与PDB结构中配体的结构相似性，并排序PDB结构
+
+        Args:
+            user_smiles: 用户输入的小分子SMILES字符串
+            output_dir: 输出目录路径
+            top_n: 返回前N个最高相似性的PDB结构
+
+        Returns:
+            排序后的PDB ID和相似性分数的元组列表
+        """
+        if not self.rdkit_available:
+            self.logger.log_error("RDKit库未正确安装，无法计算结构相似性。", self.config.error_log_path)
+            return []
+
+        # 读取chemical_components_info.md文件获取配体SMILES信息
+        md_file_path = Path(output_dir) / 'chemical_components_info.md'
+        if not md_file_path.exists():
+            self.logger.log_error(f"配体信息文件 {md_file_path} 不存在，无法获取配体SMILES信息。", self.config.error_log_path)
+            return []
+
+        try:
+            # 读取用户输入的分子
+            user_mol = Chem.MolFromSmiles(user_smiles)
+            if user_mol is None:
+                self.logger.log_error(f"无效的SMILES字符串: {user_smiles}", self.config.error_log_path)
+                return []
+            user_fp = AllChem.GetMorganFingerprintAsBitVect(user_mol, 2, nBits=2048)
+
+            # 读取配体信息
+            ligand_smiles_dict = {}
+            with open(md_file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            for line in lines[2:]:  # 跳过表头和分隔线
+                parts = [p.strip() for p in line.strip().split('|') if p.strip()]
+                if len(parts) >= 5 and parts[4]:  # 检查是否有SMILES信息
+                    ligand_id = parts[0]
+                    smiles = parts[4]
+                    ligand_smiles_dict[ligand_id] = smiles
+
+            # 读取pdb_ligand.md获取配体-PDB映射
+            pdb_ligand_file = Path(output_dir) / 'pdb_ligand.md'
+            ligand_pdb_mapping = {}
+            if pdb_ligand_file.exists():
+                with open(pdb_ligand_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                for line in lines[2:]:  # 跳过表头和分隔线
+                    parts = [p.strip() for p in line.strip().split('|') if p.strip()]
+                    if len(parts) >= 2:
+                        ligand_id = parts[0]
+                        pdb_ids = [pdb_id.strip() for pdb_id in parts[1].split(',')]
+                        ligand_pdb_mapping[ligand_id] = pdb_ids
+
+            # 计算相似性并排序
+            similarity_results = []
+            processed_pdbs = set()  # 避免重复的PDB ID
+
+            for ligand_id, pdb_ids in ligand_pdb_mapping.items():
+                if ligand_id in ligand_smiles_dict:
+                    ligand_smiles = ligand_smiles_dict[ligand_id]
+                    try:
+                        ligand_mol = Chem.MolFromSmiles(ligand_smiles)
+                        if ligand_mol is not None:
+                            ligand_fp = AllChem.GetMorganFingerprintAsBitVect(ligand_mol, 2, nBits=2048)
+                            similarity = DataStructs.TanimotoSimilarity(user_fp, ligand_fp)
+                            
+                            for pdb_id in pdb_ids:
+                                if pdb_id not in processed_pdbs:
+                                    similarity_results.append((pdb_id, similarity))
+                                    processed_pdbs.add(pdb_id)
+                    except Exception as e:
+                        self.logger.log_error(f"计算配体 {ligand_id} 相似性时出错: {e}", self.config.error_log_path)
+                        continue
+
+            # 根据相似性分数排序，取前N个
+            similarity_results.sort(key=lambda x: x[1], reverse=True)
+            top_results = similarity_results[:top_n]
+            
+            # 将结果写入文件
+            result_file = Path(output_dir) / 'structure_similarity_ranking.md'
+            with open(result_file, 'w', encoding='utf-8') as f:
+                f.write("# 分子结构相似性排序结果\n\n")
+                f.write(f"用户输入的SMILES: {user_smiles}\n\n")
+                f.write("| 排名 | PDB ID | 结构相似性分数 (Tanimoto系数) |\n")
+                f.write("| --- | --- | --- |\n")
+                for i, (pdb_id, score) in enumerate(top_results, 1):
+                    f.write(f"| {i} | {pdb_id} | {score:.4f} |\n")
+            
+            print(f"已将结构相似性排序结果写入 {result_file}")
+            print(f"前{min(len(top_results), top_n)}个最相似的PDB结构：")
+            for i, (pdb_id, score) in enumerate(top_results, 1):
+                print(f"{i}. {pdb_id}: {score:.4f}")
+            
+            return top_results
+        except Exception as e:
+            self.logger.log_error(f"计算结构相似性时出错: {e}", self.config.error_log_path)
+            return []
+
+    def process(self, uniprot_id: str, output_dir: str, user_smiles: str = None) -> None:
         """处理PDB文件下载和分析
 
         Args:
             uniprot_id: UniProt蛋白质编号
             output_dir: 输出目录路径
+            user_smiles: 可选，用户输入的小分子SMILES字符串，用于计算结构相似性
         """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
@@ -834,6 +943,11 @@ class PDBProcessor:
             self.write_chemical_info_to_md(unique_ligands, output_dir)
         else:
             print("未找到任何配体，跳过配体JSON下载和坐标提取。")
+
+        # 如果提供了用户SMILES，计算结构相似性并排序PDB结构
+        if user_smiles:
+            self.logger.log_info(f"开始计算分子结构相似性，用户输入的SMILES: {user_smiles}", self.config.info_log_path)
+            self.calculate_similarity_and_rank_pdbs(user_smiles, str(output_dir))
 
         print('\nPDB任务处理完成。')
 
@@ -1454,15 +1568,19 @@ class PypdaApp:
             然后自动下载相关PDB文件 (mmCIF格式)，提取蛋白质中的配体信息，
             生成报告，并根据是否含有配体将PDB文件分类。
             同时，下载配体化学信息并提取配体坐标。
-            """
-        )
+            使用--smile参数可根据输入的小分子SMILES计算结构相似性并排序PDB结构。
+            """)
         pdb_parser.add_argument("protein_name", type=str, help="蛋白质名称或基因名称，例如: BRCA1。")
         pdb_parser.add_argument(
             "output_dir", 
             type=str, 
             default=None, 
-            help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/蛋白质名_YYYYMMDD_HHMMSS)。"
-        )
+            help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/蛋白质名_YYYYMMDD_HHMMSS)。")
+        pdb_parser.add_argument(
+            "--smile",
+            type=str,
+            default=None,
+            help="输入小分子的SMILES字符串，用于计算与PDB结构中配体的结构相似性并排序。")
 
     def _setup_uniprot_parser(self, subparsers: argparse._SubParsersAction) -> None:
         """设置UniProt数据处理工具的子命令解析器"""
@@ -1551,7 +1669,7 @@ class PypdaApp:
                 else:
                     output_dir = args.output_dir
 
-                self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir)
+                self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smile)
             elif args.tool == "uniprot":
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
