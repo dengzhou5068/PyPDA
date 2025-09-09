@@ -41,6 +41,7 @@ class ConfigManager:
     def __init__(self):
         self.ns = {'uniprot': 'http://uniprot.org/uniprot'}
         self.error_log_path = os.path.join(os.getcwd(), 'error.txt')
+        self.info_log_path = os.path.join(os.getcwd(), 'info.txt')
         self.uniprot_api_base_url = 'https://rest.uniprot.org/uniprotkb/'
 
 
@@ -57,6 +58,18 @@ class Logger:
         with open(error_file_path, 'a', encoding='utf-8') as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - ERROR: {error_msg}\n")
         print(f"ERROR: {error_msg}", file=sys.stderr) # Print to stderr for errors
+        
+    @staticmethod
+    def log_info(info_msg: str, info_file_path: str) -> None:
+        """记录信息日志到日志文件并打印
+
+        Args:
+            info_msg: 信息内容
+            info_file_path: 信息日志文件路径
+        """
+        with open(info_file_path, 'a', encoding='utf-8') as f:
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - INFO: {info_msg}\n")
+        print(f"INFO: {info_msg}") # Print to stdout for info messages
 
 
 class CommonUtils:
@@ -113,6 +126,9 @@ class CommonUtils:
         """
         try:
             with open(output_file, 'w', encoding="utf-8") as file:
+                # 确保头部信息以>符号开头
+                if not header.startswith('>'):
+                    header = '>' + header
                 file.write(header + '\n')
                 for i in range(0, len(sequence), 60):
                     file.write(sequence[i:i+60] + '\n')
