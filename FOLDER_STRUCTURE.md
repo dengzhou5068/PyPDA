@@ -64,6 +64,6 @@ pypda/
 
 ## 📍 访问地址
 - **Web界面**：http://localhost:7860
-- **文件位置**：`d:\playground\test\pypda\result\`
+- **文件位置**：`your/own/pypda/result/`
 
 现在您可以轻松管理和查找不同批次的结果文件了！🎉
