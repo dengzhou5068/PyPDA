@@ -85,13 +85,14 @@ python gradio_app.py
 **存储位置**：`temp/uniprot_reports/uniprot_YYYYMMDD_HHMMSS/`
 
 ### 6. 🏗️ PDB处理
-**用途**：下载和处理PDB结构文件
+**用途**：下载和处理PDB结构文件，支持与用户提供的小分子结构进行相似性计算
 
 **使用方法**：
 1. 点击"🏗️ PDB处理"标签页
 2. 输入蛋白质名称（如：`BRCA1`）
-3. 点击"处理PDB"按钮
-4. 下载包含PDB文件和分析结果的ZIP包
+3. （可选）输入小分子的SMILES字符串（如：`CC(=O)NC1=CC=C(C=C1)O`）用于结构相似性计算
+4. 点击"处理PDB"按钮
+5. 下载包含PDB文件和分析结果的ZIP包
 
 **存储位置**：`temp/pdb_output/pdb_YYYYMMDD_HHMMSS/`
 
