@@ -120,12 +120,12 @@ python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
 用于PDB文件的下载、配体提取和分类管理，以及基于小分子SMILES的结构相似性计算。
 
 ```bash
-python pypda.py pdb <accession> [output_dir] [--smile <smiles>]
+python pypda.py pdb <accession> [output_dir] [--smiles <smiles>]
 ```
 - **参数**：
   - `accession`: 蛋白质名称或基因名称（例如：HDAC1）
   - `output_dir`: 输出目录，默认值为`result/pdb_output/基因名_YYYYMMDD_HHMMSS`
-  - `--smile`: 可选，小分子SMILES字符串，用于计算与PDB结构中配体的结构相似性
+  - `--smiles`: 可选，小分子SMILES字符串，用于计算与PDB结构中配体的结构相似性
 
 **示例**：
 ```bash
@@ -133,7 +133,7 @@ python pypda.py pdb <accession> [output_dir] [--smile <smiles>]
 python pypda.py pdb HDAC1
 
 # 高级用法：下载PDB文件并计算结构相似性
-python pypda.py pdb HDAC1 --smile "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
+python pypda.py pdb HDAC1 --smiles "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
 ```
 
 #### 2.3 UniProt数据处理工具 (`uniprot`)
