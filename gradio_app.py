@@ -353,9 +353,9 @@ class PyPDAGradioInterface:
                 output_dir
             ]
             
-            # 如果提供了SMILES字符串，添加--smile参数
+            # 如果提供了SMILES字符串，添加--smiles参数
             if smiles and smiles.strip():
-                cmd.extend(["--smile", smiles.strip()])
+                cmd.extend(["--smiles", smiles.strip()])
             
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             
