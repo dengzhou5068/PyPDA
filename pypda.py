@@ -1686,7 +1686,7 @@ class PypdaApp:
                 else:
                     output_dir = args.output_dir
 
-                self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smile)
+                self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smiles)
             elif args.tool == "uniprot":
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
