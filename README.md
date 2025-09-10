@@ -212,4 +212,4 @@ result/
 
 完整依赖列表参见`requirements.txt`
 
-> **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smile`参数的结构相似性计算功能。
+> **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smiles`参数的结构相似性计算功能。
