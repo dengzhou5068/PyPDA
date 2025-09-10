@@ -1584,8 +1584,9 @@ class PypdaApp:
             然后自动下载相关PDB文件 (mmCIF格式)，提取蛋白质中的配体信息，
             生成报告，并根据是否含有配体将PDB文件分类。
             同时，下载配体化学信息并提取配体坐标。
-            使用--smile参数可根据输入的小分子SMILES计算结构相似性并排序PDB结构。
-            """)
+            使用--smiles参数可根据输入的小分子SMILES计算结构相似性并排序PDB结构。
+            """
+        )
         pdb_parser.add_argument("protein_name", type=str, help="蛋白质名称或基因名称，例如: BRCA1。")
         pdb_parser.add_argument(
             "output_dir", 
@@ -1593,7 +1594,7 @@ class PypdaApp:
             default=None, 
             help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/蛋白质名_YYYYMMDD_HHMMSS)。")
         pdb_parser.add_argument(
-            "--smile",
+            "--smiles",
             type=str,
             default=None,
             help="输入小分子的SMILES字符串，用于计算与PDB结构中配体的结构相似性并排序。")
