@@ -69,7 +69,7 @@ class Logger:
         """
         with open(info_file_path, 'a', encoding='utf-8') as f:
             f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - INFO: {info_msg}\n")
-        print(f"INFO: {info_msg}") # Print to stdout for info messages
+        print(f"INFO: {info_msg}")
 
 
 class CommonUtils:
@@ -416,19 +416,22 @@ class SequenceProcessor:
         Returns:
             比对得分和同源性百分比
         """
-        aligner = PairwiseAligner()
-        alignments = aligner.align(seq1, seq2)
-        if not alignments:
-            Logger.log_error("无法找到序列比对。", ConfigManager().error_log_path)
+        try:
+            aligner = PairwiseAligner()
+            # 设置为全局比对模式并限制只返回最佳对齐
+            aligner.mode = 'global'
+            
+            # 直接使用score方法获取最佳得分，避免生成所有可能的对齐
+            score = aligner.score(seq1, seq2)
+            
+            # 计算同源性百分比
+            max_len = max(len(seq1), len(seq2))
+            homology = (score / max_len) * 100 if max_len > 0 else 0.0
+            
+            return score, homology
+        except Exception as e:
+            Logger.log_error(f"序列比对时发生错误: {str(e)}", ConfigManager().error_log_path)
             return 0.0, 0.0
-
-        best_alignment = next(alignments)
-        score = best_alignment.score
-        
-        max_len = max(len(seq1), len(seq2))
-        homology = (score / max_len) * 100 if max_len > 0 else 0.0
-        
-        return score, homology
 
     def compare_sequences(self, file_paths: List[Union[str, Path]]) -> None:
         """比较多个FASTA文件中的序列
@@ -592,7 +595,7 @@ class PDBProcessor:
             for xref in cross_references:
                 if xref.get('database') == 'PDB':
                     pdb_ids.append(xref.get('id'))
-            return list(set(pdb_ids)) # Return unique PDB IDs
+            return list(set(pdb_ids))
         except Exception as e:
             self.logger.log_error(f"获取UniProt ID {uniprot_id} 的PDB ID时出错: {e}", self.config.error_log_path)
             return []
@@ -829,6 +832,7 @@ class PDBProcessor:
             if user_mol is None:
                 self.logger.log_error(f"无效的SMILES字符串: {user_smiles}", self.config.error_log_path)
                 return []
+            # 使用RDKit计算分子指纹
             user_fp = AllChem.GetMorganFingerprintAsBitVect(user_mol, 2, nBits=2048)
 
             # 读取配体信息
@@ -865,6 +869,7 @@ class PDBProcessor:
                     try:
                         ligand_mol = Chem.MolFromSmiles(ligand_smiles)
                         if ligand_mol is not None:
+                            # 计算配体分子指纹
                             ligand_fp = AllChem.GetMorganFingerprintAsBitVect(ligand_mol, 2, nBits=2048)
                             similarity = DataStructs.TanimotoSimilarity(user_fp, ligand_fp)
                             
