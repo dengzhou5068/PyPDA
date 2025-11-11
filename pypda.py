@@ -237,39 +237,89 @@ class SequenceProcessor:
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
         for gene in tqdm(genes, desc="Fetching sequences"):
-            params = {
-                "query": f"gene_exact:{gene} AND organism_id:9606",
-                "format": "fasta",
-                "fields": "accession,sequence"
-            }
-            try:
-                response = self.uniprot_api.session.get(
-                    f"{self.config.uniprot_api_base_url}search",
-                    params=params,
-                    timeout=30
-                )
-                response.raise_for_status()
-
-                if not response.text.strip():
-                    self.logger.log_error(f"未找到基因 {gene} 对应的蛋白质序列或响应为空", self.config.error_log_path)
-                    continue
-
-                output_file = output_dir_path / f"{gene}.fasta"
+            # 定义查询策略列表，从最精确到最宽松
+            query_strategies = [
+                f"gene_exact:{gene} AND organism_id:9606",  # 精确匹配基因名
+                f"gene:{gene} AND organism_id:9606",         # 宽松匹配基因名
+                f"{gene} AND organism_id:9606"               # 一般搜索，匹配任何字段
+            ]
+            
+            found = False
+            for i, query in enumerate(query_strategies):
+                params = {
+                    "query": query,
+                    "format": "fasta",
+                    "fields": "accession,sequence"
+                }
                 try:
-                    first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
-                    SeqIO.write(first_seq_record, output_file, "fasta")
-                except StopIteration:
-                    self.logger.log_error(f"UniProt API返回无效FASTA格式，针对基因 {gene}", self.config.error_log_path)
+                    print(f"尝试查询策略 {i+1} 用于基因 {gene}: {query}")
+                    response = self.uniprot_api.session.get(
+                        f"{self.config.uniprot_api_base_url}search",
+                        params=params,
+                        timeout=30
+                    )
+                    response.raise_for_status()
+
+                    if response.text.strip():
+                        output_file = output_dir_path / f"{gene}.fasta"
+                        try:
+                            first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
+                            SeqIO.write(first_seq_record, output_file, "fasta")
+                            
+                            print(f"已将 {gene} 的第一个全长蛋白质序列保存到 {output_file}")
+                            uniprot_id = first_seq_record.id.split('|')[1] if '|' in first_seq_record.id else first_seq_record.id
+                            
+                            # 验证获取到的序列是否真正匹配
+                            seq_desc = first_seq_record.description
+                            if gene.lower() in seq_desc.lower() or uniprot_id:
+                                found = True
+                                yield gene, uniprot_id
+                                break
+                            else:
+                                print(f"警告：获取到的序列描述似乎不匹配 {gene}，尝试下一个查询策略")
+                                continue
+                        except StopIteration:
+                            print(f"警告：UniProt API返回无效FASTA格式，尝试下一个查询策略")
+                            continue
+                except requests.exceptions.RequestException as e:
+                    print(f"警告：查询策略 {i+1} 失败: {e}，尝试下一个查询策略")
                     continue
-
-                print(f"已将 {gene} 的第一个全长蛋白质序列保存到 {output_file}")
-                uniprot_id = first_seq_record.id.split('|')[1] if '|' in first_seq_record.id else first_seq_record.id
-                yield gene, uniprot_id
-
-            except requests.exceptions.RequestException as e:
-                self.logger.log_error(f"获取 {gene} 蛋白质序列失败: {e}", self.config.error_log_path)
-            except Exception as e:
-                self.logger.log_error(f"处理基因 {gene} 时发生未知错误: {e}", self.config.error_log_path)
+                except Exception as e:
+                    print(f"警告：查询策略 {i+1} 发生未知错误: {e}，尝试下一个查询策略")
+                    continue
+            
+            if not found:
+                self.logger.log_error(f"未找到基因 {gene} 对应的蛋白质序列", self.config.error_log_path)
+                print(f"未找到基因 {gene} 的蛋白质序列，已尝试所有查询策略")
+                
+                # 尝试通过search_uniprot_by_name方法获取UniProt ID
+                try:
+                    print(f"尝试使用search_uniprot_by_name方法查询 {gene}")
+                    uniprot_id = self.uniprot_api.search_uniprot_by_name(gene, 9606)
+                    if uniprot_id:
+                        # 如果找到UniProt ID，则直接获取该ID的序列
+                        params = {
+                            "query": f"accession:{uniprot_id}",
+                            "format": "fasta",
+                            "fields": "accession,sequence"
+                        }
+                        response = self.uniprot_api.session.get(
+                            f"{self.config.uniprot_api_base_url}search",
+                            params=params,
+                            timeout=30
+                        )
+                        response.raise_for_status()
+                        
+                        if response.text.strip():
+                            output_file = output_dir_path / f"{gene}.fasta"
+                            first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
+                            SeqIO.write(first_seq_record, output_file, "fasta")
+                            print(f"通过UniProt ID {uniprot_id} 成功获取 {gene} 的序列")
+                            found = True
+                            yield gene, uniprot_id
+                except Exception as e:
+                    print(f"通过search_uniprot_by_name方法查询失败: {e}")
+                    pass
 
 
     def fetch_domain_information(self, gene_uniprot_pairs: List[Tuple[str, str]], output_dir: str) -> None:
@@ -1032,33 +1082,63 @@ class UniProtAPI:
         Returns:
             找到的第一个UniProt ID，或None。
         """
-        params = {
-            "query": f"gene_exact:{name} AND organism_id:{organism_id}",
-            "format": "json",
-            "fields": "accession"
-        }
+        # 定义多种查询策略，从最精确到最宽松
+        query_strategies = [
+            f"gene_exact:{name} AND organism_id:{organism_id}",  # 精确匹配基因名
+            f"gene:{name} AND organism_id:{organism_id}",         # 宽松匹配基因名
+            f"name:{name} AND organism_id:{organism_id}",         # 匹配蛋白质名称
+            f"{name} AND organism_id:{organism_id}"               # 一般搜索，匹配任何字段
+        ]
+        
         search_url = f"{self.api_base_url}search"
-        try:
-            print(f"正在搜索 UniProt ID for '{name}' (Taxon ID: {organism_id})...")
-            response = self.session.get(search_url, params=params, timeout=30)
-            response.raise_for_status()
-            data = response.json()
+        
+        for i, query in enumerate(query_strategies):
+            params = {
+                "query": query,
+                "format": "json",
+                "fields": "accession,name,gene_names",
+                "size": 5  # 获取前5个结果进行筛选
+            }
             
-            if data and 'results' in data and data['results']:
-                accession = data['results'][0].get('primaryAccession')
-                if accession:
-                    print(f"为 '{name}' 找到 UniProt ID: {accession}")
-                    return accession
-            return None
-        except requests.exceptions.RequestException as e:
-            self.logger.log_error(f"搜索 UniProt ID for '{name}' 失败: {e}", self.config.error_log_path)
-            return None
-        except json.JSONDecodeError:
-            self.logger.log_error(f"UniProt API搜索返回无效JSON for '{name}': {response.text[:200]}...", self.config.error_log_path)
-            return None
-        except Exception as e:
-            self.logger.log_error(f"处理 UniProt 搜索结果失败 for '{name}': {e}", self.config.error_log_path)
-            return None
+            try:
+                print(f"尝试查询策略 {i+1} 用于 '{name}' (Taxon ID: {organism_id}): {query}")
+                response = self.session.get(search_url, params=params, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data and 'results' in data and data['results']:
+                    # 遍历结果，寻找最匹配的条目
+                    for result in data['results']:
+                        accession = result.get('primaryAccession')
+                        if accession:
+                            # 检查基因名或蛋白质名是否匹配
+                            gene_names = result.get('genes', [{}])[0].get('geneName', {}).get('value', '').lower()
+                            protein_names = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', '').lower()
+                            name_lower = name.lower()
+                            
+                            # 如果找到精确匹配或者包含匹配，返回该UniProt ID
+                            if name_lower == gene_names or name_lower in gene_names or name_lower in protein_names:
+                                print(f"为 '{name}' 找到匹配的 UniProt ID: {accession}")
+                                return accession
+                    
+                    # 如果没有找到精确匹配，但有结果，返回第一个结果
+                    accession = data['results'][0].get('primaryAccession')
+                    if accession:
+                        print(f"为 '{name}' 找到 UniProt ID (使用宽松匹配): {accession}")
+                        return accession
+            except requests.exceptions.RequestException as e:
+                print(f"警告：查询策略 {i+1} 失败: {e}，尝试下一个查询策略")
+                continue
+            except (json.JSONDecodeError, KeyError, IndexError) as e:
+                print(f"警告：处理响应数据时出错: {e}，尝试下一个查询策略")
+                continue
+            except Exception as e:
+                print(f"警告：查询策略 {i+1} 发生未知错误: {e}，尝试下一个查询策略")
+                continue
+        
+        # 所有策略都失败后记录错误
+        self.logger.log_error(f"无法为 '{name}' (Taxon ID: {organism_id}) 获取UniProt ID，已尝试所有查询策略。", self.config.error_log_path)
+        return None
 
     def get_uniprot_data(self, accession: str) -> Optional[Dict[str, Any]]:
         """根据UniProt编号从API获取数据
