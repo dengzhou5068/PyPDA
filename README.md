@@ -8,6 +8,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **🏗️ PDB处理**：下载PDB文件、提取配体信息并分类管理
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
+- **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
 - **🌐 Gradio界面**：提供直观的Web界面，无需命令行即可使用所有功能
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
 
@@ -36,7 +37,7 @@ pip install -r requirements.txt
 
 启动直观的Web界面：
 ```bash
-python gradio_app.py
+python launch_gradio.py
 ```
 
 访问 http://localhost:7860 即可使用所有功能。
@@ -53,7 +54,7 @@ python pypda.py <工具> <命令> [参数]
 用于蛋白质序列的获取、提取、突变和比对分析。
 
 ##### 2.1.1 获取蛋白质序列和结构域信息 (`fetch`)
-从UniProt批量获取蛋白质序列和结构域信息
+从UniProt批量获取蛋白质序列和结构域信息，支持增强的搜索策略，提高检索成功率
 
 ```bash
 python pypda.py seq fetch <genes> [output_dir]
@@ -62,10 +63,18 @@ python pypda.py seq fetch <genes> [output_dir]
   - `genes`: 要下载的基因名称，用空格分隔（例如：BRCA1 TP53 EGFR）
   - `output_dir`: 输出目录，默认值为`result/protein_sequences/基因名_YYYYMMDD_HHMMSS`
 
+**增强的搜索功能**：
+- 实现从精确到宽松的递进式查询策略（gene_exact → gene → 一般搜索）
+- 支持灵活的基因名和蛋白质名匹配（精确匹配和包含匹配）
+- 多结果筛选，提高匹配准确度
+- 完善的错误处理和日志记录
+
 **示例**：
 ```bash
 python pypda.py seq fetch BRCA1 TP53 EGFR
 ```
+
+即使是非标准或难以匹配的基因名（如MOGT2、MOGT3）也能成功检索
 
 ##### 2.1.2 提取序列区域 (`extract`)
 从FASTA文件中提取指定位置的氨基酸序列
@@ -197,8 +206,13 @@ result/
 
 - **主要文件**：
   - `gradio_app.py`：Gradio Web界面
-  - `pypda.py`：核心命令行工具
+  - `pypda.py`：核心命令行工具，包含增强的UniProt搜索功能
   - `launch_gradio.py`：Gradio启动脚本
+
+- **主要更新**：
+  - 优化了`search_uniprot_by_name`方法，实现递进式查询策略
+  - 增强了`fetch_protein_sequences`方法的序列描述验证逻辑
+  - 修复了Gradio界面与后端目录结构一致性问题
 
 ## 📋 依赖库
 
