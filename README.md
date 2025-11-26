@@ -194,25 +194,66 @@ result/
 - **分类报告**：配体分类结果
 - **结构相似性报告**：当使用`--smile`参数时生成，包含与输入小分子最相似的PDB结构排名
 
+## 📁 项目结构
+
+PyPDA采用模块化设计，代码结构清晰，便于维护和扩展：
+
+```
+pypda/
+├── config/                 # 配置管理模块
+│   ├── __init__.py
+│   └── config_manager.py   # 配置文件管理
+├── logger/                 # 日志管理模块
+│   ├── __init__.py
+│   └── logger.py           # 日志记录功能
+├── pdb/                    # PDB处理模块
+│   ├── __init__.py
+│   └── pdb_processor.py    # PDB文件处理功能
+├── report/                 # 报告生成模块
+│   ├── __init__.py
+│   └── report_generator.py # 报告生成功能
+├── sequence/               # 序列处理模块
+│   ├── __init__.py
+│   └── sequence_processor.py # 序列分析功能
+├── uniprot/                # UniProt数据模块
+│   ├── __init__.py
+│   ├── protein_analyzer.py # 蛋白质数据分析
+│   └── uniprot_api.py      # UniProt API交互
+├── utils/                  # 工具函数模块
+│   ├── __init__.py
+│   └── common_utils.py     # 通用工具函数
+├── gradio_app.py           # Gradio Web界面
+├── launch_gradio.py        # Gradio启动脚本
+├── main.py                 # 主应用入口
+├── pypda.py                # 命令行工具入口
+├── requirements.txt        # 依赖列表
+└── setup.py                # 安装配置
+```
+
 ## ⚙️ 配置文件说明
 
 1. **exclude_residues.ini**：定义需要排除的残基类型
    - 在配体提取时用于过滤不需要考虑的残基
 
-2. **config.ini**：配置文件路径设置
-   - 定义各种工具的默认参数和路径
-
 ## 🔧 开发信息
 
 - **主要文件**：
   - `gradio_app.py`：Gradio Web界面
-  - `pypda.py`：核心命令行工具，包含增强的UniProt搜索功能
+  - `pypda.py`：核心命令行工具入口
   - `launch_gradio.py`：Gradio启动脚本
+  - `main.py`：主应用逻辑
+  - `config/config_manager.py`：配置管理
+  - `uniprot/uniprot_api.py`：UniProt API交互
+  - `sequence/sequence_processor.py`：序列分析功能
+  - `pdb/pdb_processor.py`：PDB文件处理
 
 - **主要更新**：
   - 优化了`search_uniprot_by_name`方法，实现递进式查询策略
   - 增强了`fetch_protein_sequences`方法的序列描述验证逻辑
   - 修复了Gradio界面与后端目录结构一致性问题
+  - 修复了UniProt API字段名问题，将'name'改为'protein_name'
+  - 采用模块化设计，将代码拆分为多个功能模块，提高可维护性
+  - 统一了命令行参数格式，将位置参数改为可选参数（--output_dir）
 
 ## 📋 依赖库
 
