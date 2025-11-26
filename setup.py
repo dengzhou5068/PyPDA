@@ -11,13 +11,13 @@ with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), encoding=
 
 setup(
     name='pypda',
-    version='0.1.0',
+    version='0.2.0',
     description='Protein Domain Analysis Toolkit - 蛋白质结构域分析工具包',
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Zhou Deng',
     author_email='dengzho5068@foxmail.com',
-    url='https://gitee.com/coding_playground/py-pda',
+    url='https://gitee.com/coding_playground/pypda',
     packages=find_packages(),
     package_data={
         '': ['exclude_residues.ini'],
