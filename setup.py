@@ -37,7 +37,7 @@ setup(
     python_requires='>=3.8',
     keywords=['bioinformatics', 'protein analysis', 'domain prediction', 'sequence analysis'],
     project_urls={
-        'Bug Reports': 'https://gitee.com/coding_playground/py-pda/issues',
-        'Source': 'https://gitee.com/coding_playground/py-pda',
+        'Bug Reports': 'https://gitee.com/coding_playground/pypda/issues',
+        'Source': 'https://gitee.com/coding_playground/pypda',
     },
 )
