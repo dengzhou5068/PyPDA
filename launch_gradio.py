@@ -11,6 +11,7 @@ import subprocess
 import webbrowser
 import time
 from pathlib import Path
+import argparse
 
 def check_dependencies():
     """检查必要的依赖"""
@@ -24,6 +25,12 @@ def check_dependencies():
 
 def main():
     """主函数"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='启动PyPDA Web界面')
+    parser.add_argument('--port', type=int, default=7860, help='服务器端口，默认7860')
+    args = parser.parse_args()
+    port = args.port
+    
     print("🧬 启动 PyPDA Web界面...")
     print("=" * 50)
     
@@ -35,7 +42,7 @@ def main():
     os.chdir(current_dir)
     
     print(f"📁 工作目录: {current_dir}")
-    print("🚀 正在启动Gradio应用...")
+    print(f"🚀 正在启动Gradio应用，端口: {port}...")
     
     try:
         # 启动Gradio应用
@@ -44,7 +51,7 @@ def main():
         
         print("\n🌐 Web界面启动成功!")
         print("=" * 50)
-        print("访问地址: http://localhost:7860")
+        print(f"访问地址: http://localhost:{port}")
         print("\n📋 功能说明:")
         print("  - 🎯 获取蛋白质序列和结构域信息")
         print("  - ✂️ 序列提取和突变")
@@ -66,14 +73,14 @@ def main():
         # 自动打开浏览器
         try:
             time.sleep(2)
-            webbrowser.open("http://localhost:7860")
+            webbrowser.open(f"http://localhost:{port}")
         except:
             pass
         
         # 启动应用
         app.launch(
             server_name="0.0.0.0",
-            server_port=7860,
+            server_port=port,
             share=False,
             debug=False,
             show_error=True
