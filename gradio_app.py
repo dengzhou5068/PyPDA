@@ -15,7 +15,9 @@ import subprocess
 # 将当前目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from pypda import ConfigManager, Logger, CommonUtils
+from config.config_manager import ConfigManager
+from logger.logger import Logger
+from utils.common_utils import CommonUtils
 
 class PyPDAGradioInterface:
     """Gradio界面类"""
@@ -53,7 +55,7 @@ class PyPDAGradioInterface:
             # 构建命令，正确传递output_dir参数
             cmd = [
                 sys.executable, "pypda.py", "seq", "fetch"
-            ] + genes
+            ] + genes + ["--output_dir", output_dir]
             
             # 执行命令
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
@@ -350,7 +352,7 @@ class PyPDAGradioInterface:
             cmd = [
                 sys.executable, "pypda.py", "pdb",
                 protein_name.strip(),
-                output_dir
+                "--output_dir", output_dir
             ]
             
             # 如果提供了SMILES字符串，添加--smiles参数
