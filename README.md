@@ -224,8 +224,7 @@ pypda/
 │   └── common_utils.py     # 通用工具函数
 ├── gradio_app.py           # Gradio Web界面
 ├── launch_gradio.py        # Gradio启动脚本
-├── main.py                 # 主应用入口
-├── pypda.py                # 命令行工具入口
+├── pypda.py                # 主应用入口和命令行工具入口
 ├── requirements.txt        # 依赖列表
 └── setup.py                # 安装配置
 ```
@@ -238,10 +237,9 @@ pypda/
 ## 🔧 开发信息
 
 - **主要文件**：
+  - `pypda.py`：主应用入口和命令行工具入口（原 main.py 已合并至此）
   - `gradio_app.py`：Gradio Web界面
-  - `pypda.py`：核心命令行工具入口
   - `launch_gradio.py`：Gradio启动脚本
-  - `main.py`：主应用逻辑
   - `config/config_manager.py`：配置管理
   - `uniprot/uniprot_api.py`：UniProt API交互
   - `sequence/sequence_processor.py`：序列分析功能
@@ -254,6 +252,7 @@ pypda/
   - 修复了UniProt API字段名问题，将'name'改为'protein_name'
   - 采用模块化设计，将代码拆分为多个功能模块，提高可维护性
   - 统一了命令行参数格式，将位置参数改为可选参数（--output_dir）
+  - 将`main.py`合并到`pypda.py`，简化项目结构，统一入口点
 
 ## 📋 依赖库
 
