@@ -18,4 +18,4 @@ from .pdb.pdb_processor import PDBProcessor
 from .uniprot.uniprot_api import UniProtAPI
 from .uniprot.protein_analyzer import ProteinAnalyzer
 from .report.report_generator import ReportGenerator
-from .main import PypdaApp
+from .pypda import PypdaApp
