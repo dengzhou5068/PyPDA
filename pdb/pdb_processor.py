@@ -285,6 +285,111 @@ class PDBProcessor:
         except IOError as e:
             self.logger.log_error(f"创建或写入 chemical_components_info.md 文件失败: {e}", self.config.error_log_path)
             raise
+    
+    def extract_structure_info(self, folder_path: Union[str, Path]) -> List[Dict[str, Any]]:
+        """从.cif文件中提取结构信息
+
+        Args:
+            folder_path: 包含CIF文件的文件夹路径
+
+        Returns:
+            结构信息列表，每个元素包含PDB ID、结构标题、实验方法、分辨率范围
+        """
+        structure_info_list = []
+        folder_path = Path(folder_path)
+        
+        # 搜索所有子文件夹中的CIF文件
+        cif_files = list(folder_path.rglob('*.cif'))
+        if not cif_files:
+            self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行结构信息提取。", self.config.error_log_path)
+            return structure_info_list
+        
+        for file_path in tqdm(cif_files, desc="Extracting structure info"):
+            pdb_id = file_path.stem
+            structure_info = {
+                'pdb_id': pdb_id,
+                'title': '',
+                'method': '',
+                'resolution_low': '',
+                'resolution_high': ''
+            }
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # 提取PDB ID
+                import re
+                
+                # 提取结构标题
+                title_match = re.search(r'_struct.title\s+([^\n]+)', content)
+                if title_match:
+                    title = title_match.group(1).strip().strip("'\"")
+                    structure_info['title'] = title
+                
+                # 提取实验方法
+                method_match = re.search(r'_exptl.method\s+([^\n]+)', content)
+                if method_match:
+                    method = method_match.group(1).strip().strip("'\"")
+                    structure_info['method'] = method
+                
+                # 提取分辨率范围 - 优先使用refine中的值，其次使用reflns中的值
+                refine_res_low_match = re.search(r'_refine.ls_d_res_low\s+([^\n]+)', content)
+                refine_res_high_match = re.search(r'_refine.ls_d_res_high\s+([^\n]+)', content)
+                if refine_res_low_match and refine_res_high_match:
+                    structure_info['resolution_low'] = refine_res_low_match.group(1).strip()
+                    structure_info['resolution_high'] = refine_res_high_match.group(1).strip()
+                else:
+                    reflns_res_low_match = re.search(r'_reflns.d_resolution_low\s+([^\n]+)', content)
+                    reflns_res_high_match = re.search(r'_reflns.d_resolution_high\s+([^\n]+)', content)
+                    if reflns_res_low_match and reflns_res_high_match:
+                        structure_info['resolution_low'] = reflns_res_low_match.group(1).strip()
+                        structure_info['resolution_high'] = reflns_res_high_match.group(1).strip()
+                
+                structure_info_list.append(structure_info)
+            except Exception as e:
+                error_msg = f"解析 {file_path.name} 时出错: {e}"
+                self.logger.log_error(error_msg, self.config.error_log_path)
+                continue
+        
+        return structure_info_list
+    
+    def write_structure_info_to_md(self, structure_info_list: List[Dict[str, Any]], output_dir: Union[str, Path]) -> None:
+        """将结构信息写入structure_info.md文件
+
+        Args:
+            structure_info_list: 结构信息列表
+            output_dir: 输出目录
+        """
+        output_file_path = Path(output_dir) / 'structure_info.md'
+        try:
+            with open(output_file_path, 'w', encoding='utf-8') as outfile:
+                outfile.write('# 结构信息汇总\n\n')
+                outfile.write('| PDB ID | 结构标题 | 实验方法 | 分辨率范围 (Å) |\n')
+                outfile.write('| --- | --- | --- | --- |\n')
+                
+                for structure_info in sorted(structure_info_list, key=lambda x: x['pdb_id']):
+                    pdb_id = structure_info['pdb_id']
+                    title = structure_info['title']
+                    method = structure_info['method']
+                    resolution_low = structure_info['resolution_low']
+                    resolution_high = structure_info['resolution_high']
+                    
+                    if resolution_low and resolution_high:
+                        resolution = f"{resolution_low} - {resolution_high}"
+                    elif resolution_low:
+                        resolution = resolution_low
+                    elif resolution_high:
+                        resolution = resolution_high
+                    else:
+                        resolution = ""
+                    
+                    outfile.write(f'| {pdb_id} | {title} | {method} | {resolution} |\n')
+            
+            print(f'结构信息已写入 {output_file_path}')
+        except IOError as e:
+            self.logger.log_error(f"写入结构信息到MD文件失败: {output_file_path} - {e}", self.config.error_log_path)
+            raise
 
     def calculate_similarity_and_rank_pdbs(self, user_smiles: str, output_dir: str, top_n: int = 5) -> List[Tuple[str, float]]:
         """计算用户输入的小分子SMILES与PDB结构中配体的结构相似性，并排序PDB结构
@@ -450,5 +555,10 @@ class PDBProcessor:
         if user_smiles:
             self.logger.log_info(f"开始计算分子结构相似性，用户输入的SMILES: {user_smiles}", self.config.info_log_path)
             self.calculate_similarity_and_rank_pdbs(user_smiles, str(output_dir))
+        
+        # 提取结构信息并写入structure_info.md文件
+        structure_info_list = self.extract_structure_info(output_dir)
+        if structure_info_list:
+            self.write_structure_info_to_md(structure_info_list, output_dir)
 
         print('\nPDB任务处理完成。')
