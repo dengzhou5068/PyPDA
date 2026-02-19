@@ -139,6 +139,14 @@ class PypdaApp:
         pdb_parser = subparsers.add_parser(
             "pdb", 
             help="PDB文件处理工具，支持PDB文件下载、配体信息提取和文件整理。",
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+        pdb_subparsers = pdb_parser.add_subparsers(dest="command", required=True, help="PDB处理命令")
+
+        # pdb fetch命令
+        fetch_parser = pdb_subparsers.add_parser(
+            "fetch", 
+            help="PDB文件下载、配体提取和分类管理，以及基于小分子SMILES的结构相似性计算。",
             description="""
             根据提供的蛋白质名称（或基因名称），搜索对应的人类蛋白质UniProt ID，
             然后自动下载相关PDB文件 (mmCIF格式)，提取蛋白质中的配体信息，
@@ -147,13 +155,13 @@ class PypdaApp:
             使用--smiles参数可根据输入的小分子SMILES计算结构相似性并排序PDB结构。
             """
         )
-        pdb_parser.add_argument("protein_name", type=str, help="蛋白质名称或基因名称，例如: BRCA1。")
-        pdb_parser.add_argument(
+        fetch_parser.add_argument("protein_name", type=str, help="蛋白质名称或基因名称，例如: BRCA1。")
+        fetch_parser.add_argument(
             "--output_dir", 
             type=str, 
             default=None, 
             help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/蛋白质名_YYYYMMDD_HHMMSS)。")
-        pdb_parser.add_argument(
+        fetch_parser.add_argument(
             "--smiles",
             type=str,
             default=None,
@@ -236,17 +244,18 @@ class PypdaApp:
             if args.tool == "seq":
                 self.seq_processor.process_command(args)
             elif args.tool == "pdb":
-                uniprot_id = self._get_human_uniprot_id_and_handle_error(args.protein_name, "PDB处理")
-                if not uniprot_id:
-                    return
+                if args.command == "fetch":
+                    uniprot_id = self._get_human_uniprot_id_and_handle_error(args.protein_name, "PDB处理")
+                    if not uniprot_id:
+                        return
 
-                # 设置基于result/的存储路径
-                if args.output_dir is None:
-                    output_dir, _ = CommonUtils.get_output_dir("result", "pdb_output", args.protein_name)
-                else:
-                    output_dir = args.output_dir
+                    # 设置基于result/的存储路径
+                    if args.output_dir is None:
+                        output_dir, _ = CommonUtils.get_output_dir("result", "pdb_output", args.protein_name)
+                    else:
+                        output_dir = args.output_dir
 
-                self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smiles)
+                    self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smiles)
             elif args.tool == "uniprot":
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
