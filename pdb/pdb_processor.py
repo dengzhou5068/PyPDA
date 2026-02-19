@@ -130,6 +130,11 @@ class PDBProcessor:
         Returns:
             配体到PDB ID的映射字典
         """
+        import warnings
+        from Bio import BiopythonWarning
+        # 抑制Biopython的PDBConstructionWarning警告
+        warnings.filterwarnings('ignore', category=BiopythonWarning)
+        
         parser = MMCIFParser()
         ligand_pdb_dict: Dict[str, List[str]] = {}
 
