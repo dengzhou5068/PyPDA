@@ -10,6 +10,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
 - **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
+- **⚡ 并行计算支持**：采用多线程和多进程并行处理，显著提升大规模数据处理速度
 - **🌐 Gradio界面**：提供直观的Web界面，无需命令行即可使用所有功能
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
 
@@ -256,6 +257,17 @@ pypda/
   - 统一了命令行参数格式，将位置参数改为可选参数（--output_dir）
   - 将`main.py`合并到`pypda.py`，简化项目结构，统一入口点
   - 添加了结构信息提取功能，自动生成`structure_info.md`文件，包含PDB ID、结构标题、实验方法和分辨率范围
+  - **并行计算优化**：
+    - 增强了`CommonUtils.parallel_executor`方法，支持ThreadPoolExecutor和ProcessPoolExecutor
+    - 优化了`PDBProcessor`模块，添加了并行处理支持：
+      - `extract_ligands_from_pdb`：并行解析CIF文件，提取配体信息
+      - `extract_structure_info`：并行提取结构信息
+      - `analyze_pockets`：并行分析口袋信息
+    - 优化了`SequenceProcessor`模块，添加了并行处理支持：
+      - `fetch_protein_sequences`：并行从UniProt获取蛋白质序列
+      - `fetch_domain_information`：并行获取结构域信息
+      - `compare_sequences`：并行处理序列比对
+    - 解决了Windows系统兼容性问题，确保在不同操作系统上的一致行为
 
 ## 📋 依赖库
 
