@@ -4,11 +4,10 @@
 通用工具模块
 """
 import json
-import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Tuple, Any, Union
+from typing import List, Dict, Tuple, Any, Union, Callable
 
 from Bio import SeqIO
 from tqdm import tqdm
@@ -19,7 +18,9 @@ from logger.logger import Logger
 class CommonUtils:
     """通用工具类，提供项目中常用的工具函数"""
     @staticmethod
-    def read_fasta(file_path: Union[str, Path], return_header: bool = False) -> Union[str, Tuple[str, str]]:
+    def read_fasta(
+        file_path: Union[str, Path], return_header: bool = False
+    ) -> Union[str, Tuple[str, str]]:
         """读取FASTA文件，可选择返回头部信息
 
         Args:
@@ -38,11 +39,14 @@ class CommonUtils:
             Logger.log_error(f"FASTA文件未找到: {file_path}", "error.txt")
             raise
         except Exception as e:
-            Logger.log_error(f"读取FASTA文件失败: {file_path} - {str(e)}", "error.txt")
+            msg = f"读取FASTA文件失败: {file_path} - {str(e)}"
+            Logger.log_error(msg, "error.txt")
             raise
 
     @staticmethod
-    def generate_output_filename(base_name: Union[str, Path], ext: str, *args: Any) -> str:
+    def generate_output_filename(
+        base_name: Union[str, Path], ext: str, *args: Any
+    ) -> str:
         """统一生成输出文件名
 
         Args:
@@ -60,7 +64,9 @@ class CommonUtils:
         return f"{base_name_path.stem}_{info}{ext}"
 
     @staticmethod
-    def save_sequence(header: str, sequence: str, output_file: Union[str, Path]) -> None:
+    def save_sequence(
+        header: str, sequence: str, output_file: Union[str, Path]
+    ) -> None:
         """保存序列到FASTA文件
 
         Args:
@@ -78,11 +84,15 @@ class CommonUtils:
                     file.write(sequence[i:i+60] + '\n')
             print(f"序列已保存至 {output_file}")
         except IOError as e:
-            Logger.log_error(f"保存序列到文件失败: {output_file} - {str(e)}", "error.txt")
+            msg = f"保存序列到文件失败: {output_file} - {str(e)}"
+            Logger.log_error(msg, "error.txt")
             raise
 
     @staticmethod
-    def parallel_executor(func: callable, items: List[Any], max_workers: Union[int, None] = None, description: str = "Processing", executor_type: str = "thread") -> None:
+    def parallel_executor(
+        func: Callable, items: List[Any], max_workers: Union[int, None] = None,
+        description: str = "Processing", executor_type: str = "thread"
+    ) -> None:
         """并行执行函数，并显示进度条
 
         Args:
@@ -90,19 +100,29 @@ class CommonUtils:
             items: 迭代参数列表
             max_workers: 最大工作线程数
             description: 进度条描述
-            executor_type: 执行器类型，可选值："thread" (ThreadPoolExecutor) 或 "process" (ProcessPoolExecutor)
+            executor_type: 执行器类型，可选值："thread" 或 "process"
         """
-        from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-        
         if executor_type == "process":
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                list(tqdm(executor.map(func, items), total=len(items), desc=description))
+                list(tqdm(
+                    executor.map(func, items),
+                    total=len(items),
+                    desc=description
+                ))
         else:  # 默认使用ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                list(tqdm(executor.map(func, items), total=len(items), desc=description))
+                list(tqdm(
+                    executor.map(func, items),
+                    total=len(items),
+                    desc=description
+                ))
 
     @staticmethod
-    def save_to_json(data: Dict[str, Any], accession: str, output_dir: Union[str, Path] = '.') -> Path:
+    def save_to_json(
+        data: Dict[str, Any],
+        accession: str,
+        output_dir: Union[str, Path] = '.'
+    ) -> Path:
         """将数据保存为JSON文件
 
         Args:
@@ -121,7 +141,8 @@ class CommonUtils:
             print(f"JSON数据已保存至 {json_filename}")
             return json_filename
         except IOError as e:
-            Logger.log_error(f"保存JSON文件失败: {json_filename} - {str(e)}", "error.txt")
+            msg = f"保存JSON文件失败: {json_filename} - {str(e)}"
+            Logger.log_error(msg, "error.txt")
             raise
 
     @staticmethod
@@ -142,19 +163,26 @@ class CommonUtils:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            Logger.log_error(f"JSON文件解析错误: {file_path} - {str(e)}", "error.txt")
+            msg = f"JSON文件解析错误: {file_path} - {str(e)}"
+            Logger.log_error(msg, "error.txt")
             raise
         except IOError as e:
-            Logger.log_error(f"读取文件失败: {file_path} - {str(e)}", "error.txt")
+            msg = f"读取文件失败: {file_path} - {str(e)}"
+            Logger.log_error(msg, "error.txt")
             raise
 
     @staticmethod
-    def get_output_dir(base_dir: str, tool_name: str, input_name: str = "output", timestamp: str = None) -> Tuple[str, str]:
+    def get_output_dir(
+        base_dir: str,
+        tool_name: str,
+        input_name: str = "output",
+        timestamp: str = None
+    ) -> Tuple[str, str]:
         """根据工具名称和输入名称生成带时间戳的输出目录
 
         Args:
             base_dir: 基础目录，如 "result"
-            tool_name: 工具名称，如 "protein_sequences", "pdb_output", "uniprot_reports"
+            tool_name: 工具名称，如 "protein_sequences", "pdb_output"
             input_name: 输入名称，如基因名或蛋白质名
             timestamp: 时间戳，如果为None则使用当前时间
 
