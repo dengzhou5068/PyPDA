@@ -4,8 +4,6 @@
 序列处理模块
 """
 import argparse
-import io
-import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Any, Union
 
@@ -26,6 +24,7 @@ class SequenceProcessor:
         self.config = config
         self.logger = logger
         self.uniprot_api = uniprot_api
+
     def fetch_protein_sequences(self, genes: List[str], output_dir: str) -> List[Tuple[str, str]]:
         """从UniProt获取蛋白质序列
 
@@ -41,18 +40,16 @@ class SequenceProcessor:
 
         # 定义处理单个基因的函数
         def process_single_gene(gene):
-            import io
-            from Bio import SeqIO
             # 定义查询策略列表，从最精确到最宽松
             query_strategies = [
                 f"gene_exact:{gene} AND organism_id:9606",  # 精确匹配基因名
                 f"gene:{gene} AND organism_id:9606",         # 宽松匹配基因名
                 f"{gene} AND organism_id:9606"               # 一般搜索，匹配任何字段
             ]
-            
+
             found = False
             uniprot_id = None
-            
+
             for i, query in enumerate(query_strategies):
                 params = {
                     "query": query,
@@ -63,6 +60,7 @@ class SequenceProcessor:
                     print(f"尝试查询策略 {i+1} 用于基因 {gene}: {query}")
                     # 创建新的会话以避免线程安全问题
                     import requests
+                    from io import StringIO
                     session = requests.Session()
                     response = session.get(
                         f"{self.config.uniprot_api_base_url}search",
@@ -74,12 +72,12 @@ class SequenceProcessor:
                     if response.text.strip():
                         output_file = output_dir_path / f"{gene}.fasta"
                         try:
-                            first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
+                            first_seq_record = next(SeqIO.parse(StringIO(response.text.strip()), "fasta"))
                             SeqIO.write(first_seq_record, output_file, "fasta")
-                            
+
                             print(f"已将 {gene} 的第一个全长蛋白质序列保存到 {output_file}")
                             uniprot_id = first_seq_record.id.split('|')[1] if '|' in first_seq_record.id else first_seq_record.id
-                            
+
                             # 验证获取到的序列是否真正匹配
                             seq_desc = first_seq_record.description
                             if gene.lower() in seq_desc.lower() or uniprot_id:
@@ -89,15 +87,15 @@ class SequenceProcessor:
                                 print(f"警告：获取到的序列描述似乎不匹配 {gene}，尝试下一个查询策略")
                                 continue
                         except StopIteration:
-                            print(f"警告：UniProt API返回无效FASTA格式，尝试下一个查询策略")
+                            print("警告：UniProt API返回无效FASTA格式，尝试下一个查询策略")
                             continue
                 except Exception as e:
                     print(f"警告：查询策略 {i+1} 失败: {e}，尝试下一个查询策略")
                     continue
-            
+
             if not found:
                 print(f"未找到基因 {gene} 的蛋白质序列，已尝试所有查询策略")
-                
+
                 # 尝试通过search_uniprot_by_name方法获取UniProt ID
                 try:
                     print(f"尝试使用search_uniprot_by_name方法查询 {gene}")
@@ -111,6 +109,7 @@ class SequenceProcessor:
                             "fields": "accession,sequence"
                         }
                         import requests
+                        from io import StringIO
                         session = requests.Session()
                         response = session.get(
                             f"{self.config.uniprot_api_base_url}search",
@@ -118,10 +117,10 @@ class SequenceProcessor:
                             timeout=30
                         )
                         response.raise_for_status()
-                        
+
                         if response.text.strip():
                             output_file = output_dir_path / f"{gene}.fasta"
-                            first_seq_record = next(SeqIO.parse(io.StringIO(response.text.strip()), "fasta"))
+                            first_seq_record = next(SeqIO.parse(StringIO(response.text.strip()), "fasta"))
                             SeqIO.write(first_seq_record, output_file, "fasta")
                             print(f"通过UniProt ID {uniprot_id} 成功获取 {gene} 的序列")
                             found = True
@@ -158,10 +157,8 @@ class SequenceProcessor:
         # 定义处理单个基因的函数
         def process_single_gene(gene_uniprot_pair):
             gene, uniprot_id = gene_uniprot_pair
-            import io
-            from Bio import SeqIO
             result = []
-            
+
             try:
                 fasta_file = output_dir_path / f"{gene}.fasta"
                 total_amino_acids: Union[int, str]
@@ -175,14 +172,14 @@ class SequenceProcessor:
                 if not data:
                     print(f"无法获取UniProt ID {uniprot_id} 的详细数据，跳过结构域信息。")
                     return None
-                
+
                 features = data.get('features', [])
                 print(f"调试信息: UniProt ID {uniprot_id} 共获取到 {len(features)} 个特征")
 
                 result.append(f"## {gene} (UniProt ID: {uniprot_id})")
                 result.append(f"### 总氨基酸数量: {total_amino_acids}")
                 result.append("")
-                
+
                 found_domains = False
                 for feature in features:
                     feature_type = feature.get('type')
@@ -191,7 +188,7 @@ class SequenceProcessor:
                         location = feature.get('location', {})
                         begin = location.get('start', {}).get('value')
                         end = location.get('end', {}).get('value')
-                        
+
                         if begin is not None and end is not None:
                             result.append(f"- [{feature_type}] {domain_name}: 序列范围 {begin}-{end}")
                             print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
@@ -312,14 +309,14 @@ class SequenceProcessor:
             aligner = PairwiseAligner()
             # 设置为全局比对模式并限制只返回最佳对齐
             aligner.mode = 'global'
-            
+
             # 直接使用score方法获取最佳得分，避免生成所有可能的对齐
             score = aligner.score(seq1, seq2)
-            
+
             # 计算同源性百分比
             max_len = max(len(seq1), len(seq2))
             homology = (score / max_len) * 100 if max_len > 0 else 0.0
-            
+
             return score, homology
         except Exception as e:
             Logger.log_error(f"序列比对时发生错误: {str(e)}")
@@ -376,13 +373,13 @@ class SequenceProcessor:
             if not genes:
                 self.logger.log_error("未提供有效的基因名称。", self.config.error_log_path)
                 return
-            
+
             # 设置基于result/的存储路径
             if args.output_dir is None:
                 output_dir, _ = CommonUtils.get_output_dir("result", "protein_sequences", "protein")
             else:
                 output_dir = args.output_dir
-            
+
             gene_uniprot_pairs = self.fetch_protein_sequences(genes, output_dir)
             if gene_uniprot_pairs:
                 self.fetch_domain_information(gene_uniprot_pairs, output_dir)
@@ -394,7 +391,7 @@ class SequenceProcessor:
             if not fasta_file_path.is_file():
                 self.logger.log_error(f"错误：文件 {fasta_file_path} 不存在。", self.config.error_log_path)
                 return
-            
+
             extracted_seq = self.extract_subsequence(fasta_file_path, args.start, args.end)
             if extracted_seq is None:
                 return
@@ -424,7 +421,7 @@ class SequenceProcessor:
 
             if not self.validate_input(args.pos, args.aa):
                 return
-            
+
             try:
                 record = next(SeqIO.parse(str(fasta_file_path), "fasta"))
             except Exception as e:
