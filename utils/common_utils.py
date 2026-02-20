@@ -82,7 +82,7 @@ class CommonUtils:
             raise
 
     @staticmethod
-    def parallel_executor(func: callable, items: List[Any], max_workers: Union[int, None] = None, description: str = "Processing") -> None:
+    def parallel_executor(func: callable, items: List[Any], max_workers: Union[int, None] = None, description: str = "Processing", executor_type: str = "thread") -> None:
         """并行执行函数，并显示进度条
 
         Args:
@@ -90,9 +90,16 @@ class CommonUtils:
             items: 迭代参数列表
             max_workers: 最大工作线程数
             description: 进度条描述
+            executor_type: 执行器类型，可选值："thread" (ThreadPoolExecutor) 或 "process" (ProcessPoolExecutor)
         """
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            list(tqdm(executor.map(func, items), total=len(items), desc=description))
+        from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+        
+        if executor_type == "process":
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                list(tqdm(executor.map(func, items), total=len(items), desc=description))
+        else:  # 默认使用ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                list(tqdm(executor.map(func, items), total=len(items), desc=description))
 
     @staticmethod
     def save_to_json(data: Dict[str, Any], accession: str, output_dir: Union[str, Path] = '.') -> Path:
