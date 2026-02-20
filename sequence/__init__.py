@@ -3,5 +3,3 @@
 """
 序列处理模块
 """
-
-from .sequence_processor import SequenceProcessor
