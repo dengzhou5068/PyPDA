@@ -4,7 +4,7 @@
 报告生成模块
 """
 from pathlib import Path
-from typing import Union, Dict, Any, List
+from typing import Union
 
 from logger.logger import Logger
 from uniprot.protein_analyzer import ProteinInfo
@@ -85,7 +85,7 @@ class ReportGenerator:
                 comment_order = ['FUNCTION', 'CATALYTIC ACTIVITY', 'COFACTOR', 'ACTIVITY REGULATION',
                                  'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY',
                                  'DISEASE',]
-                
+
                 found_any_comment = False
                 for ct in comment_order:
                     if comments_data.get(ct):
@@ -107,7 +107,7 @@ class ReportGenerator:
 
                             if texts:
                                 f.write(f"- {'; '.join(texts)}\n")
-                            
+
                             if ct == 'CATALYTIC ACTIVITY':
                                 reaction = comment.get('reaction')
                                 if reaction:
@@ -136,7 +136,7 @@ class ReportGenerator:
                                             f.write(f"    - {cofactor_name}\n")
                                 else:
                                     f.write("  - 未找到详细辅因子信息。\n")
-           
+
                 if not found_any_comment:
                     f.write("- 未找到功能和活性注释信息。\n")
                 f.write("\n")
@@ -166,22 +166,22 @@ class ReportGenerator:
                             loc = feature.get('location', {})
                             begin = loc.get('start', {}).get('value', 'N/A')
                             end = loc.get('end', {}).get('value', 'N/A')
-                            
+
                             extra_info = []
                             if dt == 'Mutagenesis':
                                 alt_seq_data = feature.get('alternativeSequence', {})
                                 original_seq = alt_seq_data.get('originalSequence')
                                 alternative_seqs = alt_seq_data.get('alternativeSequences', [])
-                                
+
                                 if original_seq:
                                     mutation_str = f"原始: {original_seq}"
                                     if alternative_seqs:
                                         mutation_str += f" -> 突变: {', '.join(alternative_seqs)}"
                                     extra_info.append(mutation_str)
-                            
+
                             feature_line = f"- {desc} (位置: {begin}-{end})"
                             if extra_info:
-                                feature_line += f", {', '.join(extra_info)}" 
+                                feature_line += f", {', '.join(extra_info)}"
 
                             f.write(feature_line + "\n")
                 if not found_any_detailed_feature:
@@ -198,8 +198,8 @@ class ReportGenerator:
                         main_protein_id = interactant_one.get('uniProtKBAccession', 'N/A')
                         partner_id = interactant_two.get('uniProtKBAccession', 'N/A')
                         partner_name = interactant_two.get('geneName', interactant_two.get('name', 'N/A'))
-                        organism_differ = "是" if interaction.get('organismDiffer', False) else "否"
-                        f.write(f"- 相互作用 {i}: {main_protein_id} <-> **{partner_name}** (UniProt ID: {partner_id})\n")
+                        f.write(f"- 相互作用 {i}: {main_protein_id} <-> **{partner_name}** ")
+                        f.write(f"(UniProt ID: {partner_id})\n")
                 else:
                     f.write("- 未找到相互作用信息\n")
                 f.write("\n")
