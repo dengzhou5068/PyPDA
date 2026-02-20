@@ -40,7 +40,13 @@ def _process_single_cif_file(args):
         (pdb_id, ligands_in_pdb)的元组
     """
     file_path, exclude_residues = args
+    import warnings
+    from Bio import BiopythonWarning
     from Bio.PDB.MMCIFParser import MMCIFParser
+    
+    # 抑制Biopython的PDBConstructionWarning警告
+    warnings.filterwarnings('ignore', category=BiopythonWarning)
+    
     parser = MMCIFParser()
     pdb_id = file_path.stem
     ligands_in_pdb: List[str] = []
@@ -737,9 +743,3 @@ class PDBProcessor:
             md_file.write('# 口袋分析结果\n\n')
             md_file.write('| 文件名 | 配体 | 口袋残基 (XXXyyy格式) |\n')
             md_file.write('| --- | --- | --- |\n')
-            
-            for result in all_results:
-                file_name, ligand_name, residues_str = result
-                md_file.write(f"| {file_name} | {ligand_name} | {residues_str} |\n")
-        
-        print(f"口袋分析完成，结果已写入 {output_md_file}")
