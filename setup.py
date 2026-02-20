@@ -2,12 +2,16 @@ from setuptools import setup, find_packages
 import os
 
 # 读取README.md作为长描述
-with open(os.path.join(os.path.dirname(__file__), 'README.md'), encoding='utf-8') as f:
+dirname = os.path.dirname(__file__)
+with open(os.path.join(dirname, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 # 读取requirements.txt作为依赖列表
-with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), encoding='utf-8') as f:
-    requirements = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+with open(os.path.join(dirname, 'requirements.txt'), encoding='utf-8') as f:
+    requirements = [
+        line.strip() for line in f.readlines()
+        if line.strip() and not line.startswith('#')
+    ]
 
 setup(
     name='pypda',
@@ -35,7 +39,10 @@ setup(
         'Operating System :: OS Independent',
     ],
     python_requires='>=3.8',
-    keywords=['bioinformatics', 'protein analysis', 'domain prediction', 'sequence analysis'],
+    keywords=[
+        'bioinformatics', 'protein analysis',
+        'domain prediction', 'sequence analysis'
+    ],
     project_urls={
         'Bug Reports': 'https://gitee.com/coding_playground/pypda/issues',
         'Source': 'https://gitee.com/coding_playground/pypda',
