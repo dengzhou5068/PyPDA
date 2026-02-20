@@ -317,3 +317,27 @@ class PypdaApp:
                         return
 
                     data = self.uniprot_api.get_uniprot_data(uniprot_id)
+                    if not data:
+                        self.logger.log_error("无法获取UniProt数据。", self.config.error_log_path)
+                        return
+                    json_filename = CommonUtils.save_to_json(
+                        data, uniprot_id, str(output_dir_path)
+                    )
+                    analyzer = ProteinAnalyzer()
+                    protein_info = analyzer.extract_protein_info(data)
+                    md_filename = str(output_dir_path / (Path(json_filename).stem + '.md'))
+                    ReportGenerator.generate_md_report(protein_info, md_filename)
+                elif args.command == "analyze":
+                    data = CommonUtils.load_from_json(args.file)
+                    analyzer = ProteinAnalyzer()
+                    protein_info = analyzer.extract_protein_info(data)
+                    md_filename = str(Path(args.file).with_suffix('.md'))
+                    ReportGenerator.generate_md_report(protein_info, md_filename)
+        except Exception as e:
+            msg = f"应用程序运行过程中发生未捕获的错误: {e}"
+            self.logger.log_error(msg, self.config.error_log_path)
+
+
+if __name__ == "__main__":
+    app = PypdaApp()
+    app.run()
