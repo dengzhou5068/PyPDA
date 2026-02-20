@@ -167,6 +167,23 @@ class PypdaApp:
             default=None,
             help="输入小分子的SMILES字符串，用于计算与PDB结构中配体的结构相似性并排序PDB结构。")
 
+        # pdb analyze命令
+        analyze_parser = pdb_subparsers.add_parser(
+            "analyze", 
+            help="对指定文件夹下的PDB或CIF文件进行口袋分析，列出配体周围4.5埃内的氨基酸残基。",
+            description="""
+            对指定文件夹下的PDB或CIF文件中的小分子配体进行口袋分析，
+            列出配体距离4.5埃米内的氨基酸残基，
+            并将结果写成Markdown文件。
+            """
+        )
+        analyze_parser.add_argument("folder_path", type=str, help="包含PDB或CIF文件的文件夹路径。")
+        analyze_parser.add_argument(
+            "--output_dir", 
+            type=str, 
+            default=None, 
+            help="输出目录，用于保存分析结果 (默认: 与输入文件夹相同)。")
+
     def _setup_uniprot_parser(self, subparsers: argparse._SubParsersAction) -> None:
         """设置UniProt数据处理工具的子命令解析器"""
         uniprot_parser = subparsers.add_parser(
@@ -256,6 +273,14 @@ class PypdaApp:
                         output_dir = args.output_dir
 
                     self.pdb_processor.process(uniprot_id=uniprot_id, output_dir=output_dir, user_smiles=args.smiles)
+                elif args.command == "analyze":
+                    # 设置输出目录
+                    if args.output_dir is None:
+                        output_dir = args.folder_path
+                    else:
+                        output_dir = args.output_dir
+
+                    self.pdb_processor.analyze_pockets(args.folder_path, output_dir)
             elif args.tool == "uniprot":
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
