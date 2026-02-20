@@ -41,7 +41,9 @@ class UniProtAPI:
         session.mount('https://', adapter)
         session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'PyPDA/0.2.0 (https://gitee.com/coding_playground/py-pda; dengzho5068@foxmail.com)'
+            'User-Agent': 'PyPDA/0.2.0 '\
+                         '(https://gitee.com/coding_playground/py-pda; '\
+                         'dengzho5068@foxmail.com)'
         })
         return session
 
@@ -61,9 +63,9 @@ class UniProtAPI:
             f"name:{name} AND organism_id:{organism_id}",         # 匹配蛋白质名称
             f"{name} AND organism_id:{organism_id}"               # 一般搜索，匹配任何字段
         ]
-        
+
         search_url = f"{self.api_base_url}search"
-        
+
         for i, query in enumerate(query_strategies):
             params = {
                 "query": query,
@@ -71,13 +73,13 @@ class UniProtAPI:
                 "fields": "accession,protein_name,gene_names",
                 "size": 5  # 获取前5个结果进行筛选
             }
-            
+
             try:
                 print(f"尝试查询策略 {i+1} 用于 '{name}' (Taxon ID: {organism_id}): {query}")
                 response = self.session.get(search_url, params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
-                
+
                 if data and 'results' in data and data['results']:
                     # 遍历结果，寻找最匹配的条目
                     for result in data['results']:
@@ -87,12 +89,12 @@ class UniProtAPI:
                             gene_names = result.get('genes', [{}])[0].get('geneName', {}).get('value', '').lower()
                             protein_names = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', '').lower()
                             name_lower = name.lower()
-                            
+
                             # 如果找到精确匹配或者包含匹配，返回该UniProt ID
                             if name_lower == gene_names or name_lower in gene_names or name_lower in protein_names:
                                 print(f"为 '{name}' 找到匹配的 UniProt ID: {accession}")
                                 return accession
-                    
+
                     # 如果没有找到精确匹配，但有结果，返回第一个结果
                     accession = data['results'][0].get('primaryAccession')
                     if accession:
@@ -101,7 +103,7 @@ class UniProtAPI:
             except Exception as e:
                 print(f"警告：查询策略 {i+1} 失败: {e}，尝试下一个查询策略")
                 continue
-        
+
         # 所有策略都失败后记录错误
         self.logger.log_error(f"无法为 '{name}' (Taxon ID: {organism_id}) 获取UniProt ID，已尝试所有查询策略。", self.config.error_log_path)
         return None
@@ -122,13 +124,19 @@ class UniProtAPI:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            self.logger.log_error(f"HTTP请求错误 (UniProt API - {url}): {e.response.status_code} - {e.response.text}", self.config.error_log_path)
+            error_msg = f"HTTP请求错误 (UniProt API - {url}): "
+            error_msg += f"{e.response.status_code} - {e.response.text}"
+            self.logger.log_error(error_msg, self.config.error_log_path)
         except requests.exceptions.ConnectionError:
             self.logger.log_error(f"网络连接错误 (UniProt API - {url})")
         except requests.exceptions.Timeout:
             self.logger.log_error(f"请求超时 (UniProt API - {url})")
         except json.JSONDecodeError:
-            self.logger.log_error(f"UniProt API返回无效JSON (UniProt API - {url}): {response.text[:200]}...")
+            error_msg = f"UniProt API返回无效JSON (UniProt API - {url}): "
+            error_msg += f"{response.text[:200]}..."
+            self.logger.log_error(error_msg)
         except Exception as e:
-            self.logger.log_error(f"获取UniProt数据失败: {e} (UniProt API - {url})")
+            error_msg = f"获取UniProt数据失败: {e} "
+            error_msg += f"(UniProt API - {url})"
+            self.logger.log_error(error_msg)
         return None
