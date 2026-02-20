@@ -33,14 +33,16 @@ class SequenceProcessor:
             genes: 基因名称列表
             output_dir: 输出目录
 
-        Yields:
-            基因名称和对应的UniProt ID元组
+        Returns:
+            基因名称和对应的UniProt ID元组列表
         """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
-        gene_uniprot_pairs = []
-        for gene in tqdm(genes, desc="Fetching sequences"):
+        # 定义处理单个基因的函数
+        def process_single_gene(gene):
+            import io
+            from Bio import SeqIO
             # 定义查询策略列表，从最精确到最宽松
             query_strategies = [
                 f"gene_exact:{gene} AND organism_id:9606",  # 精确匹配基因名
@@ -49,6 +51,8 @@ class SequenceProcessor:
             ]
             
             found = False
+            uniprot_id = None
+            
             for i, query in enumerate(query_strategies):
                 params = {
                     "query": query,
@@ -57,7 +61,10 @@ class SequenceProcessor:
                 }
                 try:
                     print(f"尝试查询策略 {i+1} 用于基因 {gene}: {query}")
-                    response = self.uniprot_api.session.get(
+                    # 创建新的会话以避免线程安全问题
+                    import requests
+                    session = requests.Session()
+                    response = session.get(
                         f"{self.config.uniprot_api_base_url}search",
                         params=params,
                         timeout=30
@@ -77,7 +84,6 @@ class SequenceProcessor:
                             seq_desc = first_seq_record.description
                             if gene.lower() in seq_desc.lower() or uniprot_id:
                                 found = True
-                                gene_uniprot_pairs.append((gene, uniprot_id))
                                 break
                             else:
                                 print(f"警告：获取到的序列描述似乎不匹配 {gene}，尝试下一个查询策略")
@@ -90,12 +96,12 @@ class SequenceProcessor:
                     continue
             
             if not found:
-                self.logger.log_error(f"未找到基因 {gene} 对应的蛋白质序列", self.config.error_log_path)
                 print(f"未找到基因 {gene} 的蛋白质序列，已尝试所有查询策略")
                 
                 # 尝试通过search_uniprot_by_name方法获取UniProt ID
                 try:
                     print(f"尝试使用search_uniprot_by_name方法查询 {gene}")
+                    # 注意：这里仍然使用self.uniprot_api，因为它已经处理了会话管理
                     uniprot_id = self.uniprot_api.search_uniprot_by_name(gene, 9606)
                     if uniprot_id:
                         # 如果找到UniProt ID，则直接获取该ID的序列
@@ -104,7 +110,9 @@ class SequenceProcessor:
                             "format": "fasta",
                             "fields": "accession,sequence"
                         }
-                        response = self.uniprot_api.session.get(
+                        import requests
+                        session = requests.Session()
+                        response = session.get(
                             f"{self.config.uniprot_api_base_url}search",
                             params=params,
                             timeout=30
@@ -117,11 +125,23 @@ class SequenceProcessor:
                             SeqIO.write(first_seq_record, output_file, "fasta")
                             print(f"通过UniProt ID {uniprot_id} 成功获取 {gene} 的序列")
                             found = True
-                            gene_uniprot_pairs.append((gene, uniprot_id))
                 except Exception as e:
                     print(f"通过search_uniprot_by_name方法查询失败: {e}")
                     pass
-        
+            
+            if found and uniprot_id:
+                return (gene, uniprot_id)
+            else:
+                return None
+
+        # 并行处理所有基因
+        gene_uniprot_pairs = []
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(process_single_gene, genes))
+            # 过滤掉None结果
+            gene_uniprot_pairs = [result for result in results if result is not None]
+
         return gene_uniprot_pairs
 
     def fetch_domain_information(self, gene_uniprot_pairs: List[Tuple[str, str]], output_dir: str) -> None:
@@ -135,10 +155,13 @@ class SequenceProcessor:
         output_dir_path.mkdir(parents=True, exist_ok=True)
         domain_info_file = output_dir_path / "domain_info.md"
 
-        with open(domain_info_file, "w", encoding="utf-8") as domain_f:
-            domain_f.write("# 结构域信息\n\n")
-
-        for gene, uniprot_id in tqdm(gene_uniprot_pairs, desc="Fetching domain info"):
+        # 定义处理单个基因的函数
+        def process_single_gene(gene_uniprot_pair):
+            gene, uniprot_id = gene_uniprot_pair
+            import io
+            from Bio import SeqIO
+            result = []
+            
             try:
                 fasta_file = output_dir_path / f"{gene}.fasta"
                 total_amino_acids: Union[int, str]
@@ -150,38 +173,58 @@ class SequenceProcessor:
 
                 data = self.uniprot_api.get_uniprot_data(uniprot_id)
                 if not data:
-                    self.logger.log_error(f"无法获取UniProt ID {uniprot_id} 的详细数据，跳过结构域信息。", self.config.error_log_path)
-                    continue
+                    print(f"无法获取UniProt ID {uniprot_id} 的详细数据，跳过结构域信息。")
+                    return None
                 
                 features = data.get('features', [])
                 print(f"调试信息: UniProt ID {uniprot_id} 共获取到 {len(features)} 个特征")
 
-                with open(domain_info_file, "a", encoding="utf-8") as domain_f:
-                    domain_f.write(f"## {gene} (UniProt ID: {uniprot_id})\n")
-                    domain_f.write(f"### 总氨基酸数量: {total_amino_acids}\n\n")
-                    
-                    found_domains = False
-                    for feature in features:
-                        feature_type = feature.get('type')
-                        if feature_type in ("Domain", "Region"):
-                            domain_name = feature.get('description') or feature.get('featureId', '未知结构域')
-                            location = feature.get('location', {})
-                            begin = location.get('start', {}).get('value')
-                            end = location.get('end', {}).get('value')
-                            
-                            if begin is not None and end is not None:
-                                domain_f.write(f"- [{feature_type}] {domain_name}: 序列范围 {begin}-{end}\n")
-                                print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
-                                found_domains = True
-                    if not found_domains:
-                        domain_f.write("- 未找到结构域信息。可能原因：\n")
-                        domain_f.write("  - 该蛋白质可能没有已知结构域注释\n")
-                        domain_f.write("  - UniProt数据库中该条目的注释信息不完整\n")
-                        domain_f.write("  - 请检查UniProt ID是否正确或尝试更新UniProt数据\n")
-                print(f"已将 {gene} 的结构特征信息写入 {domain_info_file}")
+                result.append(f"## {gene} (UniProt ID: {uniprot_id})")
+                result.append(f"### 总氨基酸数量: {total_amino_acids}")
+                result.append("")
+                
+                found_domains = False
+                for feature in features:
+                    feature_type = feature.get('type')
+                    if feature_type in ("Domain", "Region"):
+                        domain_name = feature.get('description') or feature.get('featureId', '未知结构域')
+                        location = feature.get('location', {})
+                        begin = location.get('start', {}).get('value')
+                        end = location.get('end', {}).get('value')
+                        
+                        if begin is not None and end is not None:
+                            result.append(f"- [{feature_type}] {domain_name}: 序列范围 {begin}-{end}")
+                            print(f"{gene} 的 {domain_name} 结构域的序列编号范围: {begin}-{end}")
+                            found_domains = True
+                if not found_domains:
+                    result.append("- 未找到结构域信息。可能原因：")
+                    result.append("  - 该蛋白质可能没有已知结构域注释")
+                    result.append("  - UniProt数据库中该条目的注释信息不完整")
+                    result.append("  - 请检查UniProt ID是否正确或尝试更新UniProt数据")
+                result.append("")
+                print(f"已获取 {gene} 的结构特征信息")
+                return "\n".join(result)
 
             except Exception as e:
-                self.logger.log_error(f"获取 {gene} 的结构域信息失败: {e}", self.config.error_log_path)
+                print(f"获取 {gene} 的结构域信息失败: {e}")
+                return None
+
+        # 并行处理所有基因
+        domain_infos = []
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(process_single_gene, gene_uniprot_pairs))
+            # 过滤掉None结果
+            domain_infos = [result for result in results if result is not None]
+
+        # 写入结果到文件
+        with open(domain_info_file, "w", encoding="utf-8") as domain_f:
+            domain_f.write("# 结构域信息\n\n")
+            for domain_info in domain_infos:
+                domain_f.write(domain_info)
+                domain_f.write("\n")
+
+        print(f"已将所有结构特征信息写入 {domain_info_file}")
 
     @staticmethod
     def extract_subsequence(fasta_file: Union[str, Path], start: int, end: int) -> Optional[str]:
@@ -300,10 +343,27 @@ class SequenceProcessor:
                 self.logger.log_error(f"读取比对文件 {fp} 失败: {e}", self.config.error_log_path)
                 return
 
-        for i, seq1 in enumerate(sequences):
-            for j, seq2 in enumerate(sequences[i+1:], i+1):
-                score, homology = self.pairwise_alignment(seq1, seq2)
-                print(f"比对文件 {Path(file_paths[i]).name} 和 {Path(file_paths[j]).name}:\n比对得分: {score}\n同源性百分比: {homology:.2f}%\n")
+        # 准备所有需要比对的序列对
+        alignment_pairs = []
+        for i in range(len(sequences)):
+            for j in range(i+1, len(sequences)):
+                alignment_pairs.append((i, j, sequences[i], sequences[j], file_paths[i], file_paths[j]))
+
+        # 定义处理单个比对的函数
+        def process_single_alignment(pair):
+            i, j, seq1, seq2, file_path1, file_path2 = pair
+            score, homology = self.pairwise_alignment(seq1, seq2)
+            return (file_path1, file_path2, score, homology)
+
+        # 并行处理所有比对
+        results = []
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(process_single_alignment, alignment_pairs))
+
+        # 打印所有比对结果
+        for file_path1, file_path2, score, homology in results:
+            print(f"比对文件 {Path(file_path1).name} 和 {Path(file_path2).name}:\n比对得分: {score}\n同源性百分比: {homology:.2f}%\n")
 
     def process_command(self, args: argparse.Namespace) -> None:
         """处理序列相关命令
