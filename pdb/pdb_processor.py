@@ -28,6 +28,176 @@ except ImportError:
     pass
 
 
+# 模块级别的辅助函数，用于并行处理
+
+def _process_single_cif_file(args):
+    """处理单个CIF文件，提取配体信息
+
+    Args:
+        args: 包含(file_path, exclude_residues)的元组
+
+    Returns:
+        (pdb_id, ligands_in_pdb)的元组
+    """
+    file_path, exclude_residues = args
+    from Bio.PDB.MMCIFParser import MMCIFParser
+    parser = MMCIFParser()
+    pdb_id = file_path.stem
+    ligands_in_pdb: List[str] = []
+    try:
+        structure = parser.get_structure(pdb_id, str(file_path))
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    if residue.id[0].startswith('H_') and residue.resname.strip().upper() not in exclude_residues:
+                        ligands_in_pdb.append(residue.resname.strip().upper())
+        return pdb_id, ligands_in_pdb
+    except Exception as e:
+        error_msg = f"解析 {file_path.name} 时出错: {e}"
+        # 注意：在进程池中无法直接访问logger，这里使用简单的print
+        print(error_msg)
+        return pdb_id, []
+
+
+def _process_single_structure_file(file_path):
+    """处理单个结构文件，提取结构信息
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        结构信息字典
+    """
+    pdb_id = file_path.stem
+    structure_info = {
+        'pdb_id': pdb_id,
+        'title': '',
+        'method': '',
+        'resolution_low': '',
+        'resolution_high': ''
+    }
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 提取PDB ID
+        import re
+        
+        # 提取结构标题
+        title_match = re.search(r'_struct.title\s+([^\n]+)', content)
+        if title_match:
+            title = title_match.group(1).strip().strip("'\"")
+            structure_info['title'] = title
+        
+        # 提取实验方法
+        method_match = re.search(r'_exptl.method\s+([^\n]+)', content)
+        if method_match:
+            method = method_match.group(1).strip().strip("'\"")
+            structure_info['method'] = method
+        
+        # 提取分辨率范围 - 优先使用refine中的值，其次使用reflns中的值
+        refine_res_low_match = re.search(r'_refine.ls_d_res_low\s+([^\n]+)', content)
+        refine_res_high_match = re.search(r'_refine.ls_d_res_high\s+([^\n]+)', content)
+        if refine_res_low_match and refine_res_high_match:
+            structure_info['resolution_low'] = refine_res_low_match.group(1).strip()
+            structure_info['resolution_high'] = refine_res_high_match.group(1).strip()
+        else:
+            reflns_res_low_match = re.search(r'_reflns.d_resolution_low\s+([^\n]+)', content)
+            reflns_res_high_match = re.search(r'_reflns.d_resolution_high\s+([^\n]+)', content)
+            if reflns_res_low_match and reflns_res_high_match:
+                structure_info['resolution_low'] = reflns_res_low_match.group(1).strip()
+                structure_info['resolution_high'] = reflns_res_high_match.group(1).strip()
+        
+        return structure_info
+    except Exception as e:
+        error_msg = f"解析 {file_path.name} 时出错: {e}"
+        # 注意：在进程池中无法直接访问logger，这里使用简单的print
+        print(error_msg)
+        return structure_info
+
+
+def _process_single_pocket_file(args):
+    """处理单个文件，分析口袋信息
+
+    Args:
+        args: 包含(file_path, exclude_residues)的元组
+
+    Returns:
+        口袋分析结果列表
+    """
+    file_path, exclude_residues = args
+    import warnings
+    from Bio import BiopythonWarning
+    from Bio.PDB import PDBParser
+    from Bio.PDB.MMCIFParser import MMCIFParser
+    from Bio.PDB.Selection import unfold_entities
+    from Bio.PDB.NeighborSearch import NeighborSearch
+    
+    # 抑制Biopython的PDBConstructionWarning警告
+    warnings.filterwarnings('ignore', category=BiopythonWarning)
+    
+    file_name = file_path.name
+    pdb_id = file_path.stem
+    results = []
+    
+    try:
+        # 根据文件扩展名选择解析器
+        if file_path.suffix.lower() == '.cif':
+            parser = MMCIFParser()
+        else:  # .pdb
+            parser = PDBParser()
+        
+        structure = parser.get_structure(pdb_id, str(file_path))
+        
+        # 获取所有原子用于邻居搜索
+        all_atoms = unfold_entities(structure, 'A')
+        neighbor_search = NeighborSearch(all_atoms)
+        
+        # 遍历结构中的配体
+        for model in structure:
+            for chain in model:
+                for residue in chain:
+                    # 检查是否为配体（HETATM且不在排除列表中）
+                    if residue.id[0].startswith('H_') and residue.resname.strip().upper() not in exclude_residues:
+                        ligand_name = residue.resname.strip().upper()
+                        
+                        # 获取配体的所有原子
+                        ligand_atoms = list(residue.get_atoms())
+                        
+                        # 收集配体周围4.5埃内的残基
+                        pocket_residues = set()
+                        
+                        for atom in ligand_atoms:
+                            # 搜索4.5埃内的所有原子
+                            nearby_atoms = neighbor_search.search(atom.coord, 4.5, level='A')
+                            
+                            # 过滤出氨基酸残基（非HETATM且不在排除列表中）
+                            for nearby_atom in nearby_atoms:
+                                nearby_residue = nearby_atom.get_parent()
+                                # 检查是否为氨基酸残基（非HETATM且不在排除列表中）
+                                if not nearby_residue.id[0].startswith('H_'):
+                                    res_name = nearby_residue.resname.strip().upper()
+                                    # 排除非氨基酸残基（如溶剂分子）
+                                    if res_name not in exclude_residues:
+                                        # 格式化残基为XXXyyy格式
+                                        res_num = nearby_residue.id[1]
+                                        formatted_residue = f"{res_name}{res_num}"
+                                        pocket_residues.add(formatted_residue)
+                        
+                        # 将残基列表排序
+                        if pocket_residues:
+                            sorted_residues = sorted(list(pocket_residues))
+                            residues_str = ', '.join(sorted_residues)
+                            results.append((file_name, ligand_name, residues_str))
+        return results
+    except Exception as e:
+        error_msg = f"分析 {file_name} 时出错: {e}"
+        # 注意：在进程池中无法直接访问logger，这里使用简单的print
+        print(error_msg)
+        return [(file_name, "错误", str(e))]
+
+
 class PDBProcessor:
     """PDB处理类，负责PDB文件相关操作"""
     def __init__(self, config: ConfigManager, logger: Logger, uniprot_api: Any):
@@ -135,7 +305,6 @@ class PDBProcessor:
         # 抑制Biopython的PDBConstructionWarning警告
         warnings.filterwarnings('ignore', category=BiopythonWarning)
         
-        parser = MMCIFParser()
         ligand_pdb_dict: Dict[str, List[str]] = {}
 
         folder_path = Path(folder_path)
@@ -148,24 +317,21 @@ class PDBProcessor:
             self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行配体提取。", self.config.error_log_path)
             return {}
 
-        for file_path in tqdm(cif_files, desc="Extracting ligands"):
-            pdb_id = file_path.stem
-            try:
-                structure = parser.get_structure(pdb_id, str(file_path))
-                ligands_in_pdb: List[str] = []
-                for model in structure:
-                    for chain in model:
-                        for residue in chain:
-                            if residue.id[0].startswith('H_') and residue.resname.strip().upper() not in self.exclude_residues:
-                                ligands_in_pdb.append(residue.resname.strip().upper())
-                
-                for ligand in set(ligands_in_pdb):
-                    ligand_pdb_dict.setdefault(ligand, []).append(pdb_id)
+        # 准备参数列表
+        args_list = [(file_path, self.exclude_residues) for file_path in cif_files]
 
-            except Exception as e:
-                error_msg = f"解析 {file_path.name} 时出错: {e}"
-                self.logger.log_error(error_msg, self.config.error_log_path)
-                continue
+        # 并行处理所有文件
+        results = []
+        from concurrent.futures import ProcessPoolExecutor
+        with ProcessPoolExecutor() as executor:
+            for result in executor.map(_process_single_cif_file, args_list):
+                results.append(result)
+
+        # 合并结果
+        for pdb_id, ligands in results:
+            for ligand in set(ligands):
+                ligand_pdb_dict.setdefault(ligand, []).append(pdb_id)
+
         return ligand_pdb_dict
 
     @staticmethod
@@ -309,53 +475,13 @@ class PDBProcessor:
             self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行结构信息提取。", self.config.error_log_path)
             return structure_info_list
         
-        for file_path in tqdm(cif_files, desc="Extracting structure info"):
-            pdb_id = file_path.stem
-            structure_info = {
-                'pdb_id': pdb_id,
-                'title': '',
-                'method': '',
-                'resolution_low': '',
-                'resolution_high': ''
-            }
-            
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                # 提取PDB ID
-                import re
-                
-                # 提取结构标题
-                title_match = re.search(r'_struct.title\s+([^\n]+)', content)
-                if title_match:
-                    title = title_match.group(1).strip().strip("'\"")
-                    structure_info['title'] = title
-                
-                # 提取实验方法
-                method_match = re.search(r'_exptl.method\s+([^\n]+)', content)
-                if method_match:
-                    method = method_match.group(1).strip().strip("'\"")
-                    structure_info['method'] = method
-                
-                # 提取分辨率范围 - 优先使用refine中的值，其次使用reflns中的值
-                refine_res_low_match = re.search(r'_refine.ls_d_res_low\s+([^\n]+)', content)
-                refine_res_high_match = re.search(r'_refine.ls_d_res_high\s+([^\n]+)', content)
-                if refine_res_low_match and refine_res_high_match:
-                    structure_info['resolution_low'] = refine_res_low_match.group(1).strip()
-                    structure_info['resolution_high'] = refine_res_high_match.group(1).strip()
-                else:
-                    reflns_res_low_match = re.search(r'_reflns.d_resolution_low\s+([^\n]+)', content)
-                    reflns_res_high_match = re.search(r'_reflns.d_resolution_high\s+([^\n]+)', content)
-                    if reflns_res_low_match and reflns_res_high_match:
-                        structure_info['resolution_low'] = reflns_res_low_match.group(1).strip()
-                        structure_info['resolution_high'] = reflns_res_high_match.group(1).strip()
-                
-                structure_info_list.append(structure_info)
-            except Exception as e:
-                error_msg = f"解析 {file_path.name} 时出错: {e}"
-                self.logger.log_error(error_msg, self.config.error_log_path)
-                continue
+        # 并行处理所有文件
+        from concurrent.futures import ProcessPoolExecutor
+        with ProcessPoolExecutor() as executor:
+            results = list(executor.map(_process_single_structure_file, cif_files))
+
+        # 合并结果
+        structure_info_list.extend(results)
         
         return structure_info_list
     
@@ -577,9 +703,6 @@ class PDBProcessor:
         """
         import warnings
         from Bio import BiopythonWarning
-        from Bio.PDB import PDBParser
-        from Bio.PDB.Selection import unfold_entities
-        from Bio.PDB.NeighborSearch import NeighborSearch
         
         # 抑制Biopython的PDBConstructionWarning警告
         warnings.filterwarnings('ignore', category=BiopythonWarning)
@@ -597,6 +720,16 @@ class PDBProcessor:
         
         print(f"找到 {len(pdb_files)} 个PDB/CIF文件，开始口袋分析...")
         
+        # 准备参数列表
+        args_list = [(file_path, self.exclude_residues) for file_path in pdb_files]
+
+        # 并行处理所有文件
+        all_results = []
+        from concurrent.futures import ProcessPoolExecutor
+        with ProcessPoolExecutor() as executor:
+            for results in executor.map(_process_single_pocket_file, args_list):
+                all_results.extend(results)
+
         # 准备Markdown输出文件
         output_md_file = output_dir_path / 'pocket_analysis.md'
         
@@ -605,65 +738,8 @@ class PDBProcessor:
             md_file.write('| 文件名 | 配体 | 口袋残基 (XXXyyy格式) |\n')
             md_file.write('| --- | --- | --- |\n')
             
-            for file_path in tqdm(pdb_files, desc="分析口袋"):
-                file_name = file_path.name
-                pdb_id = file_path.stem
-                
-                try:
-                    # 根据文件扩展名选择解析器
-                    if file_path.suffix.lower() == '.cif':
-                        parser = MMCIFParser()
-                    else:  # .pdb
-                        parser = PDBParser()
-                    
-                    structure = parser.get_structure(pdb_id, str(file_path))
-                    
-                    # 获取所有原子用于邻居搜索
-                    all_atoms = unfold_entities(structure, 'A')
-                    neighbor_search = NeighborSearch(all_atoms)
-                    
-                    # 遍历结构中的配体
-                    for model in structure:
-                        for chain in model:
-                            for residue in chain:
-                                # 检查是否为配体（HETATM且不在排除列表中）
-                                if residue.id[0].startswith('H_') and residue.resname.strip().upper() not in self.exclude_residues:
-                                    ligand_name = residue.resname.strip().upper()
-                                    
-                                    # 获取配体的所有原子
-                                    ligand_atoms = list(residue.get_atoms())
-                                    
-                                    # 收集配体周围4.5埃内的残基
-                                    pocket_residues = set()
-                                    
-                                    for atom in ligand_atoms:
-                                        # 搜索4.5埃内的所有原子
-                                        nearby_atoms = neighbor_search.search(atom.coord, 4.5, level='A')
-                                        
-                                        # 过滤出氨基酸残基（非HETATM且不在排除列表中）
-                                        for nearby_atom in nearby_atoms:
-                                            nearby_residue = nearby_atom.get_parent()
-                                            # 检查是否为氨基酸残基（非HETATM且不在排除列表中）
-                                            if not nearby_residue.id[0].startswith('H_'):
-                                                res_name = nearby_residue.resname.strip().upper()
-                                                # 排除非氨基酸残基（如溶剂分子）
-                                                if res_name not in self.exclude_residues:
-                                                    # 格式化残基为XXXyyy格式
-                                                    res_num = nearby_residue.id[1]
-                                                    formatted_residue = f"{res_name}{res_num}"
-                                                    pocket_residues.add(formatted_residue)
-                                    
-                                    # 将残基列表排序并写入Markdown文件
-                                    if pocket_residues:
-                                        sorted_residues = sorted(list(pocket_residues))
-                                        residues_str = ', '.join(sorted_residues)
-                                        md_file.write(f"| {file_name} | {ligand_name} | {residues_str} |\n")
-                
-                except Exception as e:
-                    error_msg = f"分析 {file_name} 时出错: {e}"
-                    self.logger.log_error(error_msg, self.config.error_log_path)
-                    # 写入错误信息到Markdown文件
-                    md_file.write(f"| {file_name} | 错误 | {str(e)} |\n")
-                    continue
+            for result in all_results:
+                file_name, ligand_name, residues_str = result
+                md_file.write(f"| {file_name} | {ligand_name} | {residues_str} |\n")
         
         print(f"口袋分析完成，结果已写入 {output_md_file}")
