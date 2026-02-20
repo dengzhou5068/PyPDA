@@ -567,3 +567,103 @@ class PDBProcessor:
             self.write_structure_info_to_md(structure_info_list, output_dir)
 
         print('\nPDB任务处理完成。')
+
+    def analyze_pockets(self, folder_path: str, output_dir: str) -> None:
+        """对指定文件夹下的PDB或CIF文件进行口袋分析，列出配体周围4.5埃内的氨基酸残基
+
+        Args:
+            folder_path: 包含PDB或CIF文件的文件夹路径
+            output_dir: 输出目录，用于保存分析结果
+        """
+        import warnings
+        from Bio import BiopythonWarning
+        from Bio.PDB import PDBParser
+        from Bio.PDB.Selection import unfold_entities
+        from Bio.PDB.NeighborSearch import NeighborSearch
+        
+        # 抑制Biopython的PDBConstructionWarning警告
+        warnings.filterwarnings('ignore', category=BiopythonWarning)
+        
+        folder_path = Path(folder_path)
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        
+        # 查找所有PDB和CIF文件
+        pdb_files = list(folder_path.glob('*.pdb')) + list(folder_path.glob('*.cif'))
+        
+        if not pdb_files:
+            print(f"在 {folder_path} 中未找到任何PDB或CIF文件。")
+            return
+        
+        print(f"找到 {len(pdb_files)} 个PDB/CIF文件，开始口袋分析...")
+        
+        # 准备Markdown输出文件
+        output_md_file = output_dir_path / 'pocket_analysis.md'
+        
+        with open(output_md_file, 'w', encoding='utf-8') as md_file:
+            md_file.write('# 口袋分析结果\n\n')
+            md_file.write('| 文件名 | 配体 | 口袋残基 (XXXyyy格式) |\n')
+            md_file.write('| --- | --- | --- |\n')
+            
+            for file_path in tqdm(pdb_files, desc="分析口袋"):
+                file_name = file_path.name
+                pdb_id = file_path.stem
+                
+                try:
+                    # 根据文件扩展名选择解析器
+                    if file_path.suffix.lower() == '.cif':
+                        parser = MMCIFParser()
+                    else:  # .pdb
+                        parser = PDBParser()
+                    
+                    structure = parser.get_structure(pdb_id, str(file_path))
+                    
+                    # 获取所有原子用于邻居搜索
+                    all_atoms = unfold_entities(structure, 'A')
+                    neighbor_search = NeighborSearch(all_atoms)
+                    
+                    # 遍历结构中的配体
+                    for model in structure:
+                        for chain in model:
+                            for residue in chain:
+                                # 检查是否为配体（HETATM且不在排除列表中）
+                                if residue.id[0].startswith('H_') and residue.resname.strip().upper() not in self.exclude_residues:
+                                    ligand_name = residue.resname.strip().upper()
+                                    
+                                    # 获取配体的所有原子
+                                    ligand_atoms = list(residue.get_atoms())
+                                    
+                                    # 收集配体周围4.5埃内的残基
+                                    pocket_residues = set()
+                                    
+                                    for atom in ligand_atoms:
+                                        # 搜索4.5埃内的所有原子
+                                        nearby_atoms = neighbor_search.search(atom.coord, 4.5, level='A')
+                                        
+                                        # 过滤出氨基酸残基（非HETATM且不在排除列表中）
+                                        for nearby_atom in nearby_atoms:
+                                            nearby_residue = nearby_atom.get_parent()
+                                            # 检查是否为氨基酸残基（非HETATM且不在排除列表中）
+                                            if not nearby_residue.id[0].startswith('H_'):
+                                                res_name = nearby_residue.resname.strip().upper()
+                                                # 排除非氨基酸残基（如溶剂分子）
+                                                if res_name not in self.exclude_residues:
+                                                    # 格式化残基为XXXyyy格式
+                                                    res_num = nearby_residue.id[1]
+                                                    formatted_residue = f"{res_name}{res_num}"
+                                                    pocket_residues.add(formatted_residue)
+                                    
+                                    # 将残基列表排序并写入Markdown文件
+                                    if pocket_residues:
+                                        sorted_residues = sorted(list(pocket_residues))
+                                        residues_str = ', '.join(sorted_residues)
+                                        md_file.write(f"| {file_name} | {ligand_name} | {residues_str} |\n")
+                
+                except Exception as e:
+                    error_msg = f"分析 {file_name} 时出错: {e}"
+                    self.logger.log_error(error_msg, self.config.error_log_path)
+                    # 写入错误信息到Markdown文件
+                    md_file.write(f"| {file_name} | 错误 | {str(e)} |\n")
+                    continue
+        
+        print(f"口袋分析完成，结果已写入 {output_md_file}")
