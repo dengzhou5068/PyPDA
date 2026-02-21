@@ -5,7 +5,7 @@
 ### 方法1：一键启动（推荐）
 ```bash
 # 确保在pypda目录下
-python launch_gradio.py
+python gradio_launcher.py
 ```
 
 ### 方法2：手动启动
@@ -14,7 +14,7 @@ python launch_gradio.py
 pip install gradio>=4.0.0
 
 # 启动Web界面
-python gradio_app.py
+python gradio_launcher.py
 ```
 
 启动后，浏览器会自动打开 http://localhost:7860
