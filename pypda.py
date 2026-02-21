@@ -15,7 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config.config_manager import ConfigManager
 from logger.logger import Logger
 from sequence.sequence_processor import SequenceProcessor
-from pdb.pdb_processor import PDBProcessor
 from uniprot.uniprot_api import UniProtAPI
 from uniprot.protein_analyzer import ProteinAnalyzer
 from report.report_generator import ReportGenerator
@@ -31,9 +30,7 @@ class PypdaApp:
         self.seq_processor = SequenceProcessor(
             self.config, self.logger, self.uniprot_api
         )
-        self.pdb_processor = PDBProcessor(
-            self.config, self.logger, self.uniprot_api
-        )
+        self.pdb_processor = None  # 延迟实例化，只在执行pdb命令时实例化
 
     def _get_human_uniprot_id_and_handle_error(
         self, protein_name: str, task_context: str
@@ -270,6 +267,13 @@ class PypdaApp:
             if args.tool == "seq":
                 self.seq_processor.process_command(args)
             elif args.tool == "pdb":
+                # 延迟实例化PDBProcessor，只在执行pdb命令时实例化
+                if self.pdb_processor is None:
+                    from pdb.pdb_processor import PDBProcessor
+                    self.pdb_processor = PDBProcessor(
+                        self.config, self.logger, self.uniprot_api
+                    )
+                
                 if args.command == "fetch":
                     uniprot_id = self._get_human_uniprot_id_and_handle_error(
                         args.protein_name, "PDB处理"
@@ -286,8 +290,8 @@ class PypdaApp:
                         output_dir = args.output_dir
 
                     self.pdb_processor.process(
-                        uniprot_id=uniprot_id,
-                        output_dir=output_dir,
+                        uniprot_id=uniprot_id, 
+                        output_dir=output_dir, 
                         user_smiles=args.smiles
                     )
                 elif args.command == "analyze":
