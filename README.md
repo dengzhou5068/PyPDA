@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 启动直观的Web界面：
 ```bash
-python launch_gradio.py
+python gradio_launcher.py
 ```
 
 访问 http://localhost:7860 即可使用所有功能。
@@ -225,8 +225,7 @@ pypda/
 ├── utils/                  # 工具函数模块
 │   ├── __init__.py
 │   └── common_utils.py     # 通用工具函数
-├── gradio_app.py           # Gradio Web界面
-├── launch_gradio.py        # Gradio启动脚本
+├── gradio_launcher.py      # Gradio Web界面和启动脚本
 ├── pypda.py                # 主应用入口和命令行工具入口
 ├── requirements.txt        # 依赖列表
 └── setup.py                # 安装配置
@@ -241,8 +240,7 @@ pypda/
 
 - **主要文件**：
   - `pypda.py`：主应用入口和命令行工具入口（原 main.py 已合并至此）
-  - `gradio_app.py`：Gradio Web界面
-  - `launch_gradio.py`：Gradio启动脚本
+  - `gradio_launcher.py`：Gradio Web界面和启动脚本
   - `config/config_manager.py`：配置管理
   - `uniprot/uniprot_api.py`：UniProt API交互
   - `sequence/sequence_processor.py`：序列分析功能
