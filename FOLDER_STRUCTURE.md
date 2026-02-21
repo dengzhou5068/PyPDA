@@ -9,8 +9,7 @@ PyPDA 是一个蛋白质数据分析综合工具，包含命令行界面和 Grad
 ```
 pypda/
 ├── pypda.py                        # 主程序入口（原 main.py 已合并至此）
-├── gradio_app.py                   # Gradio Web 界面实现
-├── launch_gradio.py                # Gradio 启动脚本
+├── gradio_launcher.py              # Gradio Web 界面和启动脚本
 ├── setup.py                        # 项目安装配置
 ├── requirements.txt                # 依赖包列表
 ├── README.md                       # 项目说明文档
@@ -95,7 +94,7 @@ python pypda.py uniprot fetch EGFR # 获取 EGFR 的 UniProt 数据
 ```
 
 ### Web 界面方式
-1. 启动界面：`python launch_gradio.py`
+1. 启动界面：`python gradio_launcher.py`
 2. 访问地址：http://localhost:7860
 3. 选择功能标签页，按照提示输入参数
 4. 执行操作，查看结果
@@ -109,6 +108,7 @@ python pypda.py uniprot fetch EGFR # 获取 EGFR 的 UniProt 数据
 ## 📌 最近更新
 
 - **主入口合并**：将 `main.py` 合并到 `pypda.py`，简化项目结构
+- **Gradio 脚本合并**：将 `gradio_app.py` 和 `launch_gradio.py` 合并为 `gradio_launcher.py`，简化 Web 界面启动流程
 - **存储优化**：新增 `zip` 文件夹用于存储压缩结果
 - **PDB 处理增强**：按配体情况分类存储 PDB 文件
 
