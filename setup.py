@@ -15,7 +15,7 @@ with open(os.path.join(dirname, 'requirements.txt'), encoding='utf-8') as f:
 
 setup(
     name='pypda',
-    version='0.2.0',
+    version='0.4.0',
     description='Protein Domain Analysis Toolkit - 蛋白质结构域分析工具包',
     long_description=long_description,
     long_description_content_type='text/markdown',
