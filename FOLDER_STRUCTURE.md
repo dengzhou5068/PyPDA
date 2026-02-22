@@ -8,7 +8,7 @@ PyPDA 是一个蛋白质数据分析综合工具，包含命令行界面和 Grad
 
 ```
 pypda/
-├── pypda.py                        # 主程序入口（原 main.py 已合并至此）
+├── pypda.py                        # 主程序入口
 ├── setup.py                        # 项目安装配置
 ├── requirements.txt                # 依赖包列表
 ├── README.md                       # 项目说明文档
@@ -93,8 +93,8 @@ python pypda.py uniprot fetch EGFR # 获取 EGFR 的 UniProt 数据
 
 ## 📍 文件访问
 
-- **项目根目录**：`pypda\`
-- **结果文件**：`pypda\result\`
+- **项目根目录**：`d:\playground\pypda\`
+- **结果文件**：`d:\playground\pypda\result\`
 
 ## 📌 最近更新
 
