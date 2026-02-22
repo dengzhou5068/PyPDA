@@ -219,8 +219,9 @@ class PDBProcessor:
         每个 key 对应一个或多个逗号分隔的残基名称。
         """
         config = configparser.ConfigParser()
-        config_path = 'exclude_residues.ini'
-        if not Path(config_path).exists():
+        # 使用绝对路径引用 exclude_residues.ini 文件
+        config_path = Path(__file__).parent.parent / 'exclude_residues.ini'
+        if not config_path.exists():
             self.logger.log_error(f"配置文件 {config_path} 未找到。将不排除任何残基。", self.config.error_log_path)
             return []
         
@@ -743,3 +744,9 @@ class PDBProcessor:
             md_file.write('# 口袋分析结果\n\n')
             md_file.write('| 文件名 | 配体 | 口袋残基 (XXXyyy格式) |\n')
             md_file.write('| --- | --- | --- |\n')
+            
+            for result in all_results:
+                file_name, ligand_name, residues_str = result
+                md_file.write(f"| {file_name} | {ligand_name} | {residues_str} |\n")
+        
+        print(f"口袋分析完成，结果已写入 {output_md_file}")
