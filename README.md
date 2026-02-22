@@ -30,7 +30,6 @@ pip install -r requirements.txt
 
 3. 配置文件设置：
    - `exclude_residues.ini`：定义需要排除的残基
-   - `config.ini`：配置文件路径
 
 ## 🎯 使用方法
 
