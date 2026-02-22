@@ -16,9 +16,6 @@ argparse>=1.4.0  # 处理pypda.py的命令行参数
 setuptools>=65.0.0
 wheel>=0.38.0
 
-# Web界面
-gradio>=4.0.0      # Web界面框架
-
 # 可选：可视化与测试
 matplotlib>=3.7.0  # 结果可视化（如序列特征图谱）
 pytest>=7.3.1      # 单元测试支持
