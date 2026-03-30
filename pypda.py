@@ -32,23 +32,23 @@ class PypdaApp:
         )
         self.pdb_processor = None  # 延迟实例化，只在执行pdb命令时实例化
 
-    def _get_human_uniprot_id_and_handle_error(
+    def _get_uniprot_id_and_handle_error(
         self, protein_name: str, task_context: str
     ) -> str:
         """
-        尝试从蛋白质名称获取人类UniProt ID。
+        尝试从蛋白质名称获取UniProt ID（不限制种属）。
         如果失败，则记录特定于任务的错误并返回None，表示调用者应停止当前任务。
         Args:
             protein_name: 蛋白质或基因名称。
-            task_context: 当前任务的描述（例如“PDB处理”或“UniProt数据获取”）。
+            task_context: 当前任务的描述（例如"PDB处理"或"UniProt数据获取"）。
         Returns:
             成功解析的UniProt ID，否则为None。
         """
         uniprot_id = self.uniprot_api.search_uniprot_by_name(
-            protein_name, organism_id=9606
+            protein_name
         )
         if not uniprot_id:
-            msg = f"无法为 '{protein_name}' (人类) 获取UniProt ID，跳过{task_context}。"
+            msg = f"无法为 '{protein_name}' 获取UniProt ID，跳过{task_context}。"
             self.logger.log_error(msg, self.config.error_log_path)
         return uniprot_id
 
@@ -275,7 +275,7 @@ class PypdaApp:
                     )
                 
                 if args.command == "fetch":
-                    uniprot_id = self._get_human_uniprot_id_and_handle_error(
+                    uniprot_id = self._get_uniprot_id_and_handle_error(
                         args.protein_name, "PDB处理"
                     )
                     if not uniprot_id:
@@ -314,7 +314,7 @@ class PypdaApp:
                         output_dir_path = Path(args.output_dir)
                     output_dir_path.mkdir(parents=True, exist_ok=True)
 
-                    uniprot_id = self._get_human_uniprot_id_and_handle_error(
+                    uniprot_id = self._get_uniprot_id_and_handle_error(
                         args.protein_name, "UniProt数据获取"
                     )
                     if not uniprot_id:
