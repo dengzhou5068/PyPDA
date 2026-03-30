@@ -80,7 +80,8 @@ def _process_single_structure_file(file_path):
         'title': '',
         'method': '',
         'resolution_low': '',
-        'resolution_high': ''
+        'resolution_high': '',
+        'species': ''
     }
     
     try:
@@ -114,6 +115,59 @@ def _process_single_structure_file(file_path):
             if reflns_res_low_match and reflns_res_high_match:
                 structure_info['resolution_low'] = reflns_res_low_match.group(1).strip()
                 structure_info['resolution_high'] = reflns_res_high_match.group(1).strip()
+        
+        # 提取种属信息
+        import re
+        
+        # 尝试从loop结构中提取种属信息
+        # 1. 首先尝试从_entity_src_gen表中提取
+        entity_src_gen_match = re.search(r'loop_\s+.*?_entity_src_gen\.pdbx_gene_src_scientific_name\s+.*?\n([\s\S]*?)#', content)
+        if entity_src_gen_match:
+            table_content = entity_src_gen_match.group(1)
+            # 查找包含物种名称的行，通常是包含引号的字符串
+            species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
+            if species_match:
+                species = species_match.group(1)
+                structure_info['species'] = species
+        
+        # 2. 如果没有找到，尝试从_entity_src_syn表中提取
+        if not structure_info.get('species'):
+            entity_src_syn_match = re.search(r'loop_\s+.*?_entity_src_syn\.organism_scientific\s+.*?\n([\s\S]*?)#', content)
+            if entity_src_syn_match:
+                table_content = entity_src_syn_match.group(1)
+                species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
+                if species_match:
+                    species = species_match.group(1)
+                    structure_info['species'] = species
+        
+        # 3. 如果仍然没有找到，尝试从_entity_src_nat表中提取
+        if not structure_info.get('species'):
+            entity_src_nat_match = re.search(r'loop_\s+.*?_entity_src_nat\.organism_scientific\s+.*?\n([\s\S]*?)#', content)
+            if entity_src_nat_match:
+                table_content = entity_src_nat_match.group(1)
+                species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
+                if species_match:
+                    species = species_match.group(1)
+                    structure_info['species'] = species
+        
+        # 4. 最后，尝试从非loop结构中提取
+        if not structure_info.get('species'):
+            species_match = re.search(r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+\'([^\']+)\'', content)
+            if species_match:
+                species = species_match.group(1)
+                structure_info['species'] = species
+        
+        if not structure_info.get('species'):
+            species_match = re.search(r'_entity_src_syn\.organism_scientific\s+\'([^\']+)\'', content)
+            if species_match:
+                species = species_match.group(1)
+                structure_info['species'] = species
+        
+        if not structure_info.get('species'):
+            species_match = re.search(r'_entity_src_nat\.organism_scientific\s+\'([^\']+)\'', content)
+            if species_match:
+                species = species_match.group(1)
+                structure_info['species'] = species
         
         return structure_info
     except Exception as e:
@@ -363,7 +417,7 @@ class PDBProcessor:
             raise
 
     def move_files_based_on_ligands(self, folder_path: Union[str, Path], ligand_pdb_dict: Dict[str, List[str]]) -> None:
-        """根据配体信息移动CIF文件到'no_ligand'或'with_ligands'子文件夹
+        """根据配体信息移动CIF文件到相应的子文件夹
 
         Args:
             folder_path: 包含CIF文件的文件夹路径
@@ -371,8 +425,8 @@ class PDBProcessor:
         """
         folder_path = Path(folder_path)
         no_ligand_dir = folder_path / 'no_ligand'
-        with_ligands_dir = folder_path / 'with_ligands'
-
+        with_ligands_dir = folder_path / 'with_ligand'
+        
         no_ligand_dir.mkdir(exist_ok=True)
         with_ligands_dir.mkdir(exist_ok=True)
 
@@ -386,7 +440,7 @@ class PDBProcessor:
             
             if pdb_id in pdb_ids_with_ligands:
                 dst_path = with_ligands_dir / src_path.name
-                target_dir_name = 'with_ligands'
+                target_dir_name = 'with_ligand'
             else:
                 dst_path = no_ligand_dir / src_path.name
                 target_dir_name = 'no_ligand'
@@ -396,6 +450,77 @@ class PDBProcessor:
                     shutil.move(src_path, dst_path)
             except Exception as e:
                 self.logger.log_error(f"移动文件 {src_path.name} 到 {target_dir_name} 时出错: {e}", self.config.error_log_path)
+
+    def move_files_based_on_species(self, folder_path: Union[str, Path]) -> None:
+        """根据种属信息对CIF文件进行分类
+
+        Args:
+            folder_path: 包含CIF文件的文件夹路径
+        """
+        folder_path = Path(folder_path)
+        
+        # 检查 no_ligand 和 with_ligand 文件夹
+        no_ligand_dir = folder_path / 'no_ligand'
+        with_ligands_dir = folder_path / 'with_ligand'
+        
+        # 搜索所有CIF文件
+        cif_files = []
+        if no_ligand_dir.exists():
+            cif_files.extend(list(no_ligand_dir.glob('*.cif')))
+        if with_ligands_dir.exists():
+            cif_files.extend(list(with_ligands_dir.glob('*.cif')))
+        
+        if not cif_files:
+            self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行种属分类。", self.config.error_log_path)
+            return
+        
+        # 提取种属信息
+        structure_info_list = self.extract_structure_info(folder_path)
+        species_pdb_dict = {}
+        for info in structure_info_list:
+            species = info.get('species', 'Unknown')
+            pdb_id = info.get('pdb_id')
+            if pdb_id:
+                species_pdb_dict.setdefault(species, []).append(pdb_id)
+        
+        # 为每个种属创建文件夹并移动文件
+        for species, pdb_ids in species_pdb_dict.items():
+            # 清理种属名称，去除特殊字符
+            safe_species_name = species.replace(' ', '_').replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+            
+            # 跳过空种属名称
+            if not species:
+                continue
+                
+            for pdb_id in pdb_ids:
+                # 查找文件位置
+                for cif_file in cif_files:
+                    if cif_file.stem == pdb_id:
+                        src_path = cif_file
+                        # 确定目标目录
+                        if src_path.parent == no_ligand_dir:
+                            if no_ligand_dir.exists():
+                                species_dir = no_ligand_dir / f'species_{safe_species_name}'
+                                # 只在需要时创建文件夹
+                                species_dir.mkdir(exist_ok=True)
+                                dst_path = species_dir / src_path.name
+                        elif src_path.parent == with_ligands_dir:
+                            if with_ligands_dir.exists():
+                                species_dir = with_ligands_dir / f'species_{safe_species_name}'
+                                # 只在需要时创建文件夹
+                                species_dir.mkdir(exist_ok=True)
+                                dst_path = species_dir / src_path.name
+                        else:
+                            continue
+                        
+                        try:
+                            if src_path != dst_path:
+                                shutil.move(src_path, dst_path)
+                        except Exception as e:
+                            self.logger.log_error(f"移动文件 {src_path.name} 到 {species_dir.name} 时出错: {e}", self.config.error_log_path)
+                        break
+        
+        print(f"已根据种属对 {len(cif_files)} 个CIF文件进行分类")
 
     def download_ligand_json(self, unique_ligands: Set[str], output_dir: Union[str, Path]) -> None:
         """通过API并行查询配体的JSON文件并下载保存到json子文件夹
@@ -503,8 +628,8 @@ class PDBProcessor:
         try:
             with open(output_file_path, 'w', encoding='utf-8') as outfile:
                 outfile.write('# 结构信息汇总\n\n')
-                outfile.write('| PDB ID | 结构标题 | 实验方法 | 分辨率范围 (Å) |\n')
-                outfile.write('| --- | --- | --- | --- |\n')
+                outfile.write('| PDB ID | 结构标题 | 实验方法 | 分辨率范围 (Å) | 种属 |\n')
+                outfile.write('| --- | --- | --- | --- | --- |\n')
                 
                 for structure_info in sorted(structure_info_list, key=lambda x: x['pdb_id']):
                     pdb_id = structure_info['pdb_id']
@@ -512,6 +637,7 @@ class PDBProcessor:
                     method = structure_info['method']
                     resolution_low = structure_info['resolution_low']
                     resolution_high = structure_info['resolution_high']
+                    species = structure_info.get('species', '')
                     
                     if resolution_low and resolution_high:
                         resolution = f"{resolution_low} - {resolution_high}"
@@ -522,7 +648,7 @@ class PDBProcessor:
                     else:
                         resolution = ""
                     
-                    outfile.write(f'| {pdb_id} | {title} | {method} | {resolution} |\n')
+                    outfile.write(f'| {pdb_id} | {title} | {method} | {resolution} | {species} |\n')
             
             print(f'结构信息已写入 {output_file_path}')
         except IOError as e:
@@ -698,6 +824,9 @@ class PDBProcessor:
         structure_info_list = self.extract_structure_info(output_dir)
         if structure_info_list:
             self.write_structure_info_to_md(structure_info_list, output_dir)
+
+        # 根据种属进行分类
+        self.move_files_based_on_species(output_dir)
 
         print('\nPDB任务处理完成。')
 
