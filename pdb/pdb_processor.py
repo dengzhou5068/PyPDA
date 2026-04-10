@@ -120,55 +120,54 @@ def _process_single_structure_file(file_path):
         # 提取种属信息
         import re
         
-        # 尝试从loop结构中提取种属信息
-        # 1. 首先尝试从_entity_src_gen表中提取
-        entity_src_gen_match = re.search(r'loop_\s+.*?_entity_src_gen\.pdbx_gene_src_scientific_name\s+.*?\n([\s\S]*?)#', content)
-        if entity_src_gen_match:
-            table_content = entity_src_gen_match.group(1)
-            # 查找包含物种名称的行，通常是包含引号的字符串
-            species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
+        # 1. 首先尝试从_entity_src_nat.pdbx_organism_scientific非loop结构中提取
+        species_match = re.search(r'_entity_src_nat\.pdbx_organism_scientific\s+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
+        if species_match:
+            structure_info['species'] = species_match.group(2)
+        
+        # 2. 如果没有找到，尝试从_entity_src_gen.pdbx_gene_src_scientific_name非loop结构中提取
+        if not structure_info.get('species'):
+            species_match = re.search(r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
             if species_match:
-                species = species_match.group(1)
-                structure_info['species'] = species
+                structure_info['species'] = species_match.group(2)
         
-        # 2. 如果没有找到，尝试从_entity_src_syn表中提取
+        # 3. 如果没有找到，尝试从_pdbx_entity_src_syn.organism_scientific中提取（包括loop结构）
         if not structure_info.get('species'):
-            entity_src_syn_match = re.search(r'loop_\s+.*?_entity_src_syn\.organism_scientific\s+.*?\n([\s\S]*?)#', content)
-            if entity_src_syn_match:
-                table_content = entity_src_syn_match.group(1)
-                species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
-                if species_match:
-                    species = species_match.group(1)
-                    structure_info['species'] = species
-        
-        # 3. 如果仍然没有找到，尝试从_entity_src_nat表中提取
-        if not structure_info.get('species'):
-            entity_src_nat_match = re.search(r'loop_\s+.*?_entity_src_nat\.organism_scientific\s+.*?\n([\s\S]*?)#', content)
-            if entity_src_nat_match:
-                table_content = entity_src_nat_match.group(1)
-                species_match = re.search(r'\'([A-Z][a-z]+\s+[A-Z][a-z]+)\'', table_content)
-                if species_match:
-                    species = species_match.group(1)
-                    structure_info['species'] = species
-        
-        # 4. 最后，尝试从非loop结构中提取
-        if not structure_info.get('species'):
-            species_match = re.search(r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+\'([^\']+)\'', content)
+            # 尝试匹配非loop结构
+            species_match = re.search(r'_pdbx_entity_src_syn\.organism_scientific[\s\n]+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
             if species_match:
-                species = species_match.group(1)
-                structure_info['species'] = species
+                structure_info['species'] = species_match.group(2)
+            else:
+                # 尝试匹配loop结构
+                entity_src_syn_match = re.search(r'loop_[\s\S]*?_pdbx_entity_src_syn\.organism_scientific[\s\S]*?\n([\s\S]*?)#', content, re.IGNORECASE)
+                if entity_src_syn_match:
+                    table_content = entity_src_syn_match.group(1)
+                    # 在loop内容中查找物种名称
+                    species_match = re.search(r'\'([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\'', table_content)
+                    if species_match:
+                        structure_info['species'] = species_match.group(1)
         
+        # 3. 如果仍然没有找到，尝试从_entity_src_gen loop结构中提取
         if not structure_info.get('species'):
-            species_match = re.search(r'_entity_src_syn\.organism_scientific\s+\'([^\']+)\'', content)
-            if species_match:
-                species = species_match.group(1)
-                structure_info['species'] = species
-        
-        if not structure_info.get('species'):
-            species_match = re.search(r'_entity_src_nat\.organism_scientific\s+\'([^\']+)\'', content)
-            if species_match:
-                species = species_match.group(1)
-                structure_info['species'] = species
+            entity_src_gen_match = re.search(r'loop_[\s\S]*?_entity_src_gen\.[\s\S]*?\n([\s\S]*?)#', content, re.IGNORECASE)
+            if entity_src_gen_match:
+                table_content = entity_src_gen_match.group(1)
+                # 检查是否包含Homo sapiens、9606或human
+                if re.search(r'(Homo\s+sapiens|9606|human)', table_content, re.IGNORECASE):
+                    structure_info['species'] = 'Homo sapiens'
+                else:
+                    # 尝试从_entity_src_gen.pdbx_gene_src_scientific_name字段提取
+                    scientific_name_match = re.search(r'\'([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\'', table_content)
+                    if scientific_name_match:
+                        structure_info['species'] = scientific_name_match.group(1)
+                    # 尝试从_struct_ref.db_code字段提取（如CDK6_HUMAN）
+                    if not structure_info.get('species'):
+                        struct_ref_match = re.search(r'_struct_ref\.db_code\s+([A-Za-z0-9_]+)', content, re.IGNORECASE)
+                        if struct_ref_match:
+                            db_code = struct_ref_match.group(1)
+                            # 检查是否包含_HUMAN后缀
+                            if '_HUMAN' in db_code:
+                                structure_info['species'] = 'Homo sapiens'
         
         return structure_info
     except Exception as e:
