@@ -136,19 +136,25 @@ python pypda.py seq align protein1.fasta protein2.fasta protein3.fasta
 用于PDB文件的下载、配体提取和分类管理，以及基于小分子SMILES的结构相似性计算。
 
 ```bash
-python pypda.py pdb fetch <accession> [output_dir] [--smiles <smiles>]
+python pypda.py pdb fetch <query> [output_dir] [--smiles <smiles>]
 ```
 
 - **参数**：
-  - `accession`: 蛋白质名称或基因名称（例如：HDAC1）
-  - `output_dir`: 输出目录，默认值为`result/pdb_output/基因名_YYYYMMDD_HHMMSS`
+  - `query`: PDB数据库搜索查询字符串（例如：BRCA1, kinase, DNA polymerase）
+  - `output_dir`: 输出目录，默认值为`result/pdb_output/查询词_YYYYMMDD_HHMMSS`
   - `--smiles`: 可选，小分子SMILES字符串，用于计算与PDB结构中配体的结构相似性
 
 **示例**：
 
 ```bash
-# 基本用法：下载PDB文件并提取配体信息
-python pypda.py pdb fetch HDAC1
+# 基本用法：使用蛋白质名称搜索并下载PDB文件
+python pypda.py pdb fetch BRCA1
+
+# 使用功能名称搜索
+python pypda.py pdb fetch kinase
+
+# 使用更复杂的查询
+python pypda.py pdb fetch "DNA polymerase"
 
 # 高级用法：下载PDB文件并计算结构相似性
 python pypda.py pdb fetch HDAC1 --smiles "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
@@ -257,9 +263,11 @@ pypda/
   - `pdb/pdb_processor.py`：PDB文件处理
 - **主要更新**：
   - **版本 0.5.0**：
-    - 不限制种属查询和下载PDB文件
-    - 优化PDB文件分类逻辑：先根据是否有配体分类到 no\_ligand 或 with\_ligand 文件夹，再根据种属进行子分类
-    - 添加种属信息提取功能，将种属信息补充到 structure\_info.md 文件中
+    - 重构PDB搜索功能，改用pypdb库直接搜索PDB数据库
+    - 不再经过获取UniProt ID的步骤，直接使用查询字符串搜索PDB
+    - 优化PDB ID获取流程，提高搜索效率
+    - 优化PDB文件分类逻辑：先根据是否有配体分类到 no_ligand 或 with_ligand 文件夹，再根据种属进行子分类
+    - 添加种属信息提取功能，将种属信息补充到 structure_info.md 文件中
     - 优化文件夹创建逻辑，避免创建空文件夹
 
 ## 📋 依赖库
@@ -270,8 +278,10 @@ pypda/
 - requests：HTTP请求库
 - pandas：数据处理
 - configparser：配置文件解析
+- pypdb：PDB数据库查询工具
 - rdkit：用于分子结构处理和相似性计算（需额外安装）
 
 完整依赖列表参见`requirements.txt`
 
 > **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smiles`参数的结构相似性计算功能。
+
