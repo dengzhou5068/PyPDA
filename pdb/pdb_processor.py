@@ -15,6 +15,7 @@ from typing import List, Dict, Set, Any, Union, Tuple
 from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBList import PDBList
 from tqdm import tqdm
+import pypdb
 
 from config.config_manager import ConfigManager
 from logger.logger import Logger
@@ -316,6 +317,28 @@ class PDBProcessor:
             return list(set(pdb_ids))
         except Exception as e:
             self.logger.log_error(f"获取UniProt ID {uniprot_id} 的PDB ID时出错: {e}", self.config.error_log_path)
+            return []
+
+    def get_pdb_ids_from_query(self, query: str) -> List[str]:
+        """通过查询字符串搜索PDB ID列表
+        使用 pypdb 库搜索 PDB 数据库。
+
+        Args:
+            query: 搜索查询字符串
+
+        Returns:
+            PDB ID列表
+        """
+        try:
+            # 使用 pypdb 搜索 PDB ID
+            pdb_ids = pypdb.Query(query).search()
+            if pdb_ids:
+                return list(set(pdb_ids))
+            else:
+                self.logger.log_error(f"未找到与查询 '{query}' 匹配的PDB ID。", self.config.error_log_path)
+                return []
+        except Exception as e:
+            self.logger.log_error(f"通过查询 '{query}' 搜索PDB ID时出错: {e}", self.config.error_log_path)
             return []
 
     def download_pdb_files(self, pdb_ids: List[str], output_dir: str) -> None:
@@ -755,30 +778,41 @@ class PDBProcessor:
             self.logger.log_error(f"计算结构相似性时出错: {e}", self.config.error_log_path)
             return []
 
-    def process(self, uniprot_id: str, output_dir: str, user_smiles: str = None) -> None:
+    def process(self, query: str = None, uniprot_id: str = None, output_dir: str = None, user_smiles: str = None) -> None:
         """处理PDB文件下载和分析
 
         Args:
-            uniprot_id: UniProt蛋白质编号
+            query: 搜索查询字符串（优先使用）
+            uniprot_id: UniProt蛋白质编号（备选）
             output_dir: 输出目录路径
             user_smiles: 可选，用户输入的小分子SMILES字符串，用于计算结构相似性
         """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
-        if not uniprot_id:
-            self.logger.log_error("缺少 'uniprot' ID。", self.config.error_log_path)
+        if not query and not uniprot_id:
+            self.logger.log_error("缺少查询字符串或 'uniprot' ID。", self.config.error_log_path)
             return
         
-        print(f"\n--- 开始处理 PDB 任务 (UniProt ID: {uniprot_id}) ---")
-        
-        pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
-        if pdb_ids:
-            print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
-            self.download_pdb_files(pdb_ids, output_dir)
+        pdb_ids = []
+        if query:
+            print(f"\n--- 开始处理 PDB 任务 (查询: {query}) ---")
+            pdb_ids = self.get_pdb_ids_from_query(query)
+            if pdb_ids:
+                print(f"为查询 '{query}' 找到 PDB IDs: {', '.join(pdb_ids)}")
+                self.download_pdb_files(pdb_ids, output_dir)
+            else:
+                self.logger.log_error(f"未找到与查询 '{query}' 匹配的PDB ID。", self.config.error_log_path)
+                return
         else:
-            self.logger.log_error(f"未找到 UniProt ID {uniprot_id} 对应的PDB ID。", self.config.error_log_path)
-            return
+            print(f"\n--- 开始处理 PDB 任务 (UniProt ID: {uniprot_id}) ---")
+            pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
+            if pdb_ids:
+                print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
+                self.download_pdb_files(pdb_ids, output_dir)
+            else:
+                self.logger.log_error(f"未找到 UniProt ID {uniprot_id} 对应的PDB ID。", self.config.error_log_path)
+                return
 
         downloaded_cif_files = list(Path(output_dir).glob('*.cif'))
         if not downloaded_cif_files:
