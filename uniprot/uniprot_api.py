@@ -7,6 +7,7 @@ import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from typing import Dict, Any, Optional
 
 from config.config_manager import ConfigManager
 from logger.logger import Logger
@@ -15,7 +16,7 @@ from logger.logger import Logger
 class UniProtAPI:
     """UniProt API交互类，负责从UniProt API获取数据"""
 
-    def __init__(self, config: ConfigManager, logger: Logger):
+    def __init__(self, config: ConfigManager, logger: Logger) -> None:
         """初始化UniProtAPI实例
 
         Args:
@@ -41,13 +42,15 @@ class UniProtAPI:
         session.mount('https://', adapter)
         session.headers.update({
             'Accept': 'application/json',
-            'User-Agent': 'PyPDA/0.2.0 '\
-                         '(https://gitee.com/coding_playground/py-pda; '\
-                         'dengzho5068@foxmail.com)'
+            'User-Agent': (
+                'PyPDA/0.5.0 '
+                '(https://gitee.com/coding_playground/py-pda; '
+                'dengzho5068@foxmail.com)'
+            )
         })
         return session
 
-    def search_uniprot_by_name(self, name: str, organism_id: int = 9606) -> str:
+    def search_uniprot_by_name(self, name: str, organism_id: int = 9606) -> Optional[str]:
         """
         根据蛋白质名称或基因名称搜索UniProt，并限定种属。
         Args:
@@ -86,12 +89,20 @@ class UniProtAPI:
                         accession = result.get('primaryAccession')
                         if accession:
                             # 检查基因名或蛋白质名是否匹配
-                            gene_names = result.get('genes', [{}])[0].get('geneName', {}).get('value', '').lower()
-                            protein_names = result.get('proteinDescription', {}).get('recommendedName', {}).get('fullName', {}).get('value', '').lower()
+                            gene_names = result.get('genes', [{}])[0].get(
+                                'geneName', {}
+                            ).get('value', '').lower()
+                            protein_names = result.get('proteinDescription', {}).get(
+                                'recommendedName', {}
+                            ).get('fullName', {}).get('value', '').lower()
                             name_lower = name.lower()
 
                             # 如果找到精确匹配或者包含匹配，返回该UniProt ID
-                            if name_lower == gene_names or name_lower in gene_names or name_lower in protein_names:
+                            if (
+                                name_lower == gene_names or
+                                name_lower in gene_names or
+                                name_lower in protein_names
+                            ):
                                 print(f"为 '{name}' 找到匹配的 UniProt ID: {accession}")
                                 return accession
 
@@ -105,10 +116,14 @@ class UniProtAPI:
                 continue
 
         # 所有策略都失败后记录错误
-        self.logger.log_error(f"无法为 '{name}' (Taxon ID: {organism_id}) 获取UniProt ID，已尝试所有查询策略。", self.config.error_log_path)
+        error_msg = (
+            f"无法为 '{name}' (Taxon ID: {organism_id}) 获取UniProt ID，"
+            "已尝试所有查询策略。"
+        )
+        self.logger.log_error(error_msg, self.config.error_log_path)
         return None
 
-    def get_uniprot_data(self, accession: str) -> dict:
+    def get_uniprot_data(self, accession: str) -> Optional[Dict[str, Any]]:
         """根据UniProt编号从API获取数据
 
         Args:
@@ -128,15 +143,15 @@ class UniProtAPI:
             error_msg += f"{e.response.status_code} - {e.response.text}"
             self.logger.log_error(error_msg, self.config.error_log_path)
         except requests.exceptions.ConnectionError:
-            self.logger.log_error(f"网络连接错误 (UniProt API - {url})")
+            self.logger.log_error(f"网络连接错误 (UniProt API - {url})", self.config.error_log_path)
         except requests.exceptions.Timeout:
-            self.logger.log_error(f"请求超时 (UniProt API - {url})")
+            self.logger.log_error(f"请求超时 (UniProt API - {url})", self.config.error_log_path)
         except json.JSONDecodeError:
             error_msg = f"UniProt API返回无效JSON (UniProt API - {url}): "
             error_msg += f"{response.text[:200]}..."
-            self.logger.log_error(error_msg)
+            self.logger.log_error(error_msg, self.config.error_log_path)
         except Exception as e:
             error_msg = f"获取UniProt数据失败: {e} "
             error_msg += f"(UniProt API - {url})"
-            self.logger.log_error(error_msg)
+            self.logger.log_error(error_msg, self.config.error_log_path)
         return None
