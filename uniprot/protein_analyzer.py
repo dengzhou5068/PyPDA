@@ -88,7 +88,7 @@ class ProteinAnalyzer:
                          'TISSUE SPECIFICITY', 'SUBCELLULAR LOCATION', 'PTM', 'SIMILARITY', 'DISEASE', 'INTERACTION']
         comment_type_map = {ct.lower(): ct for ct in comment_types}
         info['comments'] = {ct: [] for ct in comment_types}
-        
+
         for comment in comments:
             ct_lower = comment.get('commentType', '').lower()
             if ct_lower in comment_type_map:
@@ -103,7 +103,10 @@ class ProteinAnalyzer:
             'counts': {},
             'detailed': {}
         }
-        detailed_feature_types = ["Chain", "Region", "Active site", "Binding site", "Modified residue", "Mutagenesis", "Domain"]
+        detailed_feature_types = [
+            "Chain", "Region", "Active site", "Binding site",
+            "Modified residue", "Mutagenesis", "Domain"
+        ]
         for dt in detailed_feature_types:
             info['features']['detailed'][dt] = []
 
