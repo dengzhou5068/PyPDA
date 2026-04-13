@@ -8,6 +8,7 @@ import sys
 import os
 import argparse
 from pathlib import Path
+from typing import Optional, Any
 
 # 将当前目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,18 +24,18 @@ from utils.common_utils import CommonUtils
 
 class PypdaApp:
     """Pypda应用主类，负责命令行参数解析和工具调度"""
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = ConfigManager()
         self.logger = Logger()
         self.uniprot_api = UniProtAPI(self.config, self.logger)
         self.seq_processor = SequenceProcessor(
             self.config, self.logger, self.uniprot_api
         )
-        self.pdb_processor = None  # 延迟实例化，只在执行pdb命令时实例化
+        self.pdb_processor: Optional[Any] = None  # 延迟实例化，只在执行pdb命令时实例化
 
     def _get_uniprot_id_and_handle_error(
         self, protein_name: str, task_context: str
-    ) -> str:
+    ) -> Optional[str]:
         """
         尝试从蛋白质名称获取UniProt ID（不限制种属）。
         如果失败，则记录特定于任务的错误并返回None，表示调用者应停止当前任务。
@@ -272,7 +273,7 @@ class PypdaApp:
                     self.pdb_processor = PDBProcessor(
                         self.config, self.logger, self.uniprot_api
                     )
-                
+
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
                     if args.output_dir is None:
@@ -283,8 +284,8 @@ class PypdaApp:
                         output_dir = args.output_dir
 
                     self.pdb_processor.process(
-                        query=args.query, 
-                        output_dir=output_dir, 
+                        query=args.query,
+                        output_dir=output_dir,
                         user_smiles=args.smiles
                     )
                 elif args.command == "analyze":
