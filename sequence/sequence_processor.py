@@ -21,6 +21,13 @@ from utils.common_utils import CommonUtils
 class SequenceProcessor:
     """序列处理类，负责蛋白质序列相关操作"""
     def __init__(self, config: ConfigManager, logger: Logger, uniprot_api: Any):
+        """初始化SequenceProcessor实例
+        
+        Args:
+            config: 配置管理器实例
+            logger: 日志记录器实例
+            uniprot_api: UniProtAPI实例，用于访问UniProt数据
+        """
         self.config = config
         self.logger = logger
         self.uniprot_api = uniprot_api
@@ -39,7 +46,7 @@ class SequenceProcessor:
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
         # 定义处理单个基因的函数
-        def process_single_gene(gene):
+        def process_single_gene(gene: str) -> Optional[Tuple[str, str]]:
             # 定义查询策略列表，从最精确到最宽松
             query_strategies = [
                 f"gene_exact:{gene} AND organism_id:9606",  # 精确匹配基因名
@@ -48,7 +55,7 @@ class SequenceProcessor:
             ]
 
             found = False
-            uniprot_id = None
+            uniprot_id: Optional[str] = None
 
             for i, query in enumerate(query_strategies):
                 params = {
@@ -76,7 +83,9 @@ class SequenceProcessor:
                             SeqIO.write(first_seq_record, output_file, "fasta")
 
                             print(f"已将 {gene} 的第一个全长蛋白质序列保存到 {output_file}")
-                            uniprot_id = first_seq_record.id.split('|')[1] if '|' in first_seq_record.id else first_seq_record.id
+                            uniprot_id = (first_seq_record.id.split('|')[1]
+                                          if '|' in first_seq_record.id
+                                          else first_seq_record.id)
 
                             # 验证获取到的序列是否真正匹配
                             seq_desc = first_seq_record.description
@@ -127,14 +136,14 @@ class SequenceProcessor:
                 except Exception as e:
                     print(f"通过search_uniprot_by_name方法查询失败: {e}")
                     pass
-            
+
             if found and uniprot_id:
                 return (gene, uniprot_id)
             else:
                 return None
 
         # 并行处理所有基因
-        gene_uniprot_pairs = []
+        gene_uniprot_pairs: List[Tuple[str, str]] = []
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(process_single_gene, genes))
@@ -155,9 +164,9 @@ class SequenceProcessor:
         domain_info_file = output_dir_path / "domain_info.md"
 
         # 定义处理单个基因的函数
-        def process_single_gene(gene_uniprot_pair):
+        def process_single_gene(gene_uniprot_pair: Tuple[str, str]) -> Optional[str]:
             gene, uniprot_id = gene_uniprot_pair
-            result = []
+            result: List[str] = []
 
             try:
                 fasta_file = output_dir_path / f"{gene}.fasta"
@@ -207,7 +216,7 @@ class SequenceProcessor:
                 return None
 
         # 并行处理所有基因
-        domain_infos = []
+        domain_infos: List[str] = []
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(process_single_gene, gene_uniprot_pairs))
@@ -341,19 +350,19 @@ class SequenceProcessor:
                 return
 
         # 准备所有需要比对的序列对
-        alignment_pairs = []
+        alignment_pairs: List[Tuple[int, int, str, str, Union[str, Path], Union[str, Path]]] = []
         for i in range(len(sequences)):
             for j in range(i+1, len(sequences)):
                 alignment_pairs.append((i, j, sequences[i], sequences[j], file_paths[i], file_paths[j]))
 
         # 定义处理单个比对的函数
-        def process_single_alignment(pair):
+        def process_single_alignment(pair: Tuple[int, int, str, str, Union[str, Path], Union[str, Path]]) -> Tuple[Union[str, Path], Union[str, Path], float, float]:
             i, j, seq1, seq2, file_path1, file_path2 = pair
             score, homology = self.pairwise_alignment(seq1, seq2)
             return (file_path1, file_path2, score, homology)
 
         # 并行处理所有比对
-        results = []
+        results: List[Tuple[Union[str, Path], Union[str, Path], float, float]] = []
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor() as executor:
             results = list(executor.map(process_single_alignment, alignment_pairs))
