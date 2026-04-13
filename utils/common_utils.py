@@ -7,7 +7,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Tuple, Any, Union, Callable
+from typing import List, Dict, Tuple, Any, Union, Callable, Optional
 
 from Bio import SeqIO
 from tqdm import tqdm
@@ -194,3 +194,19 @@ class CommonUtils:
         output_dir = Path(base_dir) / tool_name / f"{input_name}_{timestamp}"
         output_dir.mkdir(parents=True, exist_ok=True)
         return str(output_dir), timestamp
+
+    @staticmethod
+    def ensure_output_dir(output_dir: Optional[Union[str, Path]]) -> Path:
+        """确保输出目录存在，如果不存在则创建
+
+        Args:
+            output_dir: 输出目录路径，可以为None
+
+        Returns:
+            Path对象，表示输出目录
+        """
+        if output_dir is None:
+            return Path.cwd()
+        output_dir_path = Path(output_dir)
+        output_dir_path.mkdir(parents=True, exist_ok=True)
+        return output_dir_path
