@@ -5,14 +5,12 @@ PDB文件处理模块
 """
 import configparser
 import json
-import os
 import shutil
 import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Set, Any, Union, Tuple
 
-from Bio.PDB.MMCIFParser import MMCIFParser
 from Bio.PDB.PDBList import PDBList
 from tqdm import tqdm
 import pypdb
@@ -31,7 +29,7 @@ except ImportError:
 
 # 模块级别的辅助函数，用于并行处理
 
-def _process_single_cif_file(args):
+def _process_single_cif_file(args: Tuple[Path, List[str]]) -> Tuple[str, List[str]]:
     """处理单个CIF文件，提取配体信息
 
     Args:
@@ -66,7 +64,7 @@ def _process_single_cif_file(args):
         return pdb_id, []
 
 
-def _process_single_structure_file(file_path):
+def _process_single_structure_file(file_path: Path) -> Dict[str, Any]:
     """处理单个结构文件，提取结构信息
 
     Args:
@@ -76,7 +74,7 @@ def _process_single_structure_file(file_path):
         结构信息字典
     """
     pdb_id = file_path.stem
-    structure_info = {
+    structure_info: Dict[str, Any] = {
         'pdb_id': pdb_id,
         'title': '',
         'method': '',
@@ -121,35 +119,43 @@ def _process_single_structure_file(file_path):
         import re
         
         # 1. 首先尝试从_entity_src_nat.pdbx_organism_scientific非loop结构中提取
-        species_match = re.search(r'_entity_src_nat\.pdbx_organism_scientific\s+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
+        species_pattern = r'_entity_src_nat\.pdbx_organism_scientific\s+([\'"])([^\'"]+)\1'
+        species_match = re.search(species_pattern, content, re.IGNORECASE)
         if species_match:
             structure_info['species'] = species_match.group(2)
-        
+
         # 2. 如果没有找到，尝试从_entity_src_gen.pdbx_gene_src_scientific_name非loop结构中提取
         if not structure_info.get('species'):
-            species_match = re.search(r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
+            species_pattern = r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+([\'"])([^\'"]+)\1'
+            species_match = re.search(species_pattern, content, re.IGNORECASE)
             if species_match:
                 structure_info['species'] = species_match.group(2)
-        
+
         # 3. 如果没有找到，尝试从_pdbx_entity_src_syn.organism_scientific中提取（包括loop结构）
         if not structure_info.get('species'):
             # 尝试匹配非loop结构
-            species_match = re.search(r'_pdbx_entity_src_syn\.organism_scientific[\s\n]+([\'"])([^\'"]+)\1', content, re.IGNORECASE)
+            species_pattern = r'_pdbx_entity_src_syn\.organism_scientific[\s\n]+([\'"])([^\'"]+)\1'
+            species_match = re.search(species_pattern, content, re.IGNORECASE)
             if species_match:
                 structure_info['species'] = species_match.group(2)
             else:
                 # 尝试匹配loop结构
-                entity_src_syn_match = re.search(r'loop_[\s\S]*?_pdbx_entity_src_syn\.organism_scientific[\s\S]*?\n([\s\S]*?)#', content, re.IGNORECASE)
+                loop_pattern = (
+                    r'loop_[\s\S]*?_pdbx_entity_src_syn\.organism_scientific'
+                    r'[\s\S]*?\n([\s\S]*?)#'
+                )
+                entity_src_syn_match = re.search(loop_pattern, content, re.IGNORECASE)
                 if entity_src_syn_match:
                     table_content = entity_src_syn_match.group(1)
                     # 在loop内容中查找物种名称
                     species_match = re.search(r'\'([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\'', table_content)
                     if species_match:
                         structure_info['species'] = species_match.group(1)
-        
-        # 3. 如果仍然没有找到，尝试从_entity_src_gen loop结构中提取
+
+        # 4. 如果仍然没有找到，尝试从_entity_src_gen loop结构中提取
         if not structure_info.get('species'):
-            entity_src_gen_match = re.search(r'loop_[\s\S]*?_entity_src_gen\.[\s\S]*?\n([\s\S]*?)#', content, re.IGNORECASE)
+            loop_pattern = r'loop_[\s\S]*?_entity_src_gen\.[\s\S]*?\n([\s\S]*?)#'
+            entity_src_gen_match = re.search(loop_pattern, content, re.IGNORECASE)
             if entity_src_gen_match:
                 table_content = entity_src_gen_match.group(1)
                 # 检查是否包含Homo sapiens、9606或human
@@ -162,7 +168,8 @@ def _process_single_structure_file(file_path):
                         structure_info['species'] = scientific_name_match.group(1)
                     # 尝试从_struct_ref.db_code字段提取（如CDK6_HUMAN）
                     if not structure_info.get('species'):
-                        struct_ref_match = re.search(r'_struct_ref\.db_code\s+([A-Za-z0-9_]+)', content, re.IGNORECASE)
+                        struct_ref_pattern = r'_struct_ref\.db_code\s+([A-Za-z0-9_]+)'
+                        struct_ref_match = re.search(struct_ref_pattern, content, re.IGNORECASE)
                         if struct_ref_match:
                             db_code = struct_ref_match.group(1)
                             # 检查是否包含_HUMAN后缀
@@ -177,7 +184,7 @@ def _process_single_structure_file(file_path):
         return structure_info
 
 
-def _process_single_pocket_file(args):
+def _process_single_pocket_file(args: Tuple[Path, List[str]]) -> List[Tuple[str, str, str]]:
     """处理单个文件，分析口袋信息
 
     Args:
@@ -199,7 +206,7 @@ def _process_single_pocket_file(args):
     
     file_name = file_path.name
     pdb_id = file_path.stem
-    results = []
+    results: List[Tuple[str, str, str]] = []
     
     try:
         # 根据文件扩展名选择解析器
@@ -226,7 +233,7 @@ def _process_single_pocket_file(args):
                         ligand_atoms = list(residue.get_atoms())
                         
                         # 收集配体周围4.5埃内的残基
-                        pocket_residues = set()
+                        pocket_residues: Set[str] = set()
                         
                         for atom in ligand_atoms:
                             # 搜索4.5埃内的所有原子
@@ -261,6 +268,13 @@ def _process_single_pocket_file(args):
 class PDBProcessor:
     """PDB处理类，负责PDB文件相关操作"""
     def __init__(self, config: ConfigManager, logger: Logger, uniprot_api: Any):
+        """初始化PDBProcessor实例
+        
+        Args:
+            config: 配置管理器实例
+            logger: 日志记录器实例
+            uniprot_api: UniProtAPI实例，用于访问UniProt数据
+        """
         self.config = config
         self.logger = logger
         self.uniprot_api = uniprot_api
@@ -268,9 +282,13 @@ class PDBProcessor:
         self.rdkit_available = 'rdkit' in sys.modules
 
     def parse_exclude_residues(self) -> List[str]:
-        """解析排除残基的配置文件 `exclude_residues.ini`。
+        """解析排除残基的配置文件 `exclude_residues.ini`
+        
         期望配置文件中有一个或多个 [residues] 或类似 section，
         每个 key 对应一个或多个逗号分隔的残基名称。
+
+        Returns:
+            排除的残基名称列表，全部转换为大写
         """
         config = configparser.ConfigParser()
         # 使用绝对路径引用 exclude_residues.ini 文件
@@ -318,12 +336,13 @@ class PDBProcessor:
             self.logger.log_error(f"获取UniProt ID {uniprot_id} 的PDB ID时出错: {e}", self.config.error_log_path)
             return []
 
-    def get_pdb_ids_from_query(self, query: str) -> List[str]:
+    def get_pdb_ids_from_query(self, query: str, max_results: int = 5) -> List[str]:
         """通过查询字符串搜索PDB ID列表
         使用 pypdb 库搜索 PDB 数据库。
 
         Args:
             query: 搜索查询字符串
+            max_results: 最大返回结果数量，默认 5 个
 
         Returns:
             PDB ID列表
@@ -332,7 +351,8 @@ class PDBProcessor:
             # 使用 pypdb 搜索 PDB ID
             pdb_ids = pypdb.Query(query).search()
             if pdb_ids:
-                return list(set(pdb_ids))
+                unique_ids = list(set(pdb_ids))
+                return unique_ids[:max_results]
             else:
                 self.logger.log_error(f"未找到与查询 '{query}' 匹配的PDB ID。", self.config.error_log_path)
                 return []
@@ -508,7 +528,12 @@ class PDBProcessor:
         # 为每个种属创建文件夹并移动文件
         for species, pdb_ids in species_pdb_dict.items():
             # 清理种属名称，去除特殊字符
-            safe_species_name = species.replace(' ', '_').replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_')
+            safe_species_name = (
+                species.replace(' ', '_').replace('/', '_').replace('\\', '_')
+                .replace(':', '_').replace('*', '_').replace('?', '_')
+                .replace('"', '_').replace('<', '_').replace('>', '_')
+                .replace('|', '_')
+            )
             
             # 跳过空种属名称
             if not species:
@@ -539,7 +564,10 @@ class PDBProcessor:
                             if src_path != dst_path:
                                 shutil.move(src_path, dst_path)
                         except Exception as e:
-                            self.logger.log_error(f"移动文件 {src_path.name} 到 {species_dir.name} 时出错: {e}", self.config.error_log_path)
+                            log_msg = (
+                                f"移动文件 {src_path.name} 到 {species_dir.name} 时出错: {e}"
+                            )
+                            self.logger.log_error(log_msg, self.config.error_log_path)
                         break
         
         print(f"已根据种属对 {len(cif_files)} 个CIF文件进行分类")
@@ -571,7 +599,11 @@ class PDBProcessor:
                 else:
                     self.logger.log_error(f"下载配体 {ligand} 时出错: {e}", self.config.error_log_path)
 
-        CommonUtils.parallel_executor(download_single_ligand_json, list(unique_ligands), description="Downloading ligand JSONs")
+        CommonUtils.parallel_executor(
+            download_single_ligand_json,
+            list(unique_ligands),
+            description="Downloading ligand JSONs"
+        )
 
     def write_chemical_info_to_md(self, unique_ligands: Set[str], output_dir: Union[str, Path]) -> None:
         """从json子文件夹中读取JSON文件并写入chemical_components_info.md
@@ -603,9 +635,11 @@ class PDBProcessor:
                                 break
                         md_file.write(f"| {ligand} | {name} | {formula} | {formula_weight} | {canonical_smiles} |\n")
                     except FileNotFoundError:
-                        self.logger.log_error(f"JSON file for {ligand} not found in {json_dir}", self.config.error_log_path)
+                        log_msg = f"JSON file for {ligand} not found in {json_dir}"
+                        self.logger.log_error(log_msg, self.config.error_log_path)
                     except Exception as e:
-                        self.logger.log_error(f"读取或解析配体 {ligand} 的JSON文件失败: {e}", self.config.error_log_path)
+                        log_msg = f"读取或解析配体 {ligand} 的JSON文件失败: {e}"
+                        self.logger.log_error(log_msg, self.config.error_log_path)
             print(f"MD file {output_md_file} has been created successfully.")
         except IOError as e:
             self.logger.log_error(f"创建或写入 chemical_components_info.md 文件失败: {e}", self.config.error_log_path)
@@ -626,7 +660,8 @@ class PDBProcessor:
         # 搜索所有子文件夹中的CIF文件
         cif_files = list(folder_path.rglob('*.cif'))
         if not cif_files:
-            self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行结构信息提取。", self.config.error_log_path)
+            log_msg = f"在 {folder_path} 中未找到任何.cif文件进行结构信息提取。"
+            self.logger.log_error(log_msg, self.config.error_log_path)
             return structure_info_list
         
         # 并行处理所有文件
@@ -639,7 +674,11 @@ class PDBProcessor:
         
         return structure_info_list
     
-    def write_structure_info_to_md(self, structure_info_list: List[Dict[str, Any]], output_dir: Union[str, Path]) -> None:
+    def write_structure_info_to_md(
+        self,
+        structure_info_list: List[Dict[str, Any]],
+        output_dir: Union[str, Path]
+    ) -> None:
         """将结构信息写入structure_info.md文件
 
         Args:
@@ -653,7 +692,10 @@ class PDBProcessor:
                 outfile.write('| PDB ID | 结构标题 | 实验方法 | 分辨率范围 (Å) | 种属 |\n')
                 outfile.write('| --- | --- | --- | --- | --- |\n')
                 
-                for structure_info in sorted(structure_info_list, key=lambda x: x['pdb_id']):
+                for structure_info in sorted(
+                    structure_info_list,
+                    key=lambda x: x['pdb_id']
+                ):
                     pdb_id = structure_info['pdb_id']
                     title = structure_info['title']
                     method = structure_info['method']
@@ -674,10 +716,18 @@ class PDBProcessor:
             
             print(f'结构信息已写入 {output_file_path}')
         except IOError as e:
-            self.logger.log_error(f"写入结构信息到MD文件失败: {output_file_path} - {e}", self.config.error_log_path)
+            log_msg = (
+                f"写入结构信息到MD文件失败: {output_file_path} - {e}"
+            )
+            self.logger.log_error(log_msg, self.config.error_log_path)
             raise
 
-    def calculate_similarity_and_rank_pdbs(self, user_smiles: str, output_dir: str, top_n: int = 5) -> List[Tuple[str, float]]:
+    def calculate_similarity_and_rank_pdbs(
+        self,
+        user_smiles: str,
+        output_dir: str,
+        top_n: int = 5
+    ) -> List[Tuple[str, float]]:
         """计算用户输入的小分子SMILES与PDB结构中配体的结构相似性，并排序PDB结构
 
         Args:
@@ -777,7 +827,13 @@ class PDBProcessor:
             self.logger.log_error(f"计算结构相似性时出错: {e}", self.config.error_log_path)
             return []
 
-    def process(self, query: str = None, uniprot_id: str = None, output_dir: str = None, user_smiles: str = None) -> None:
+    def process(
+        self,
+        query: str = None,
+        uniprot_id: str = None,
+        output_dir: str = None,
+        user_smiles: str = None
+    ) -> None:
         """处理PDB文件下载和分析
 
         Args:
@@ -850,7 +906,10 @@ class PDBProcessor:
 
         # 如果提供了用户SMILES，计算结构相似性并排序PDB结构
         if user_smiles:
-            self.logger.log_info(f"开始计算分子结构相似性，用户输入的SMILES: {user_smiles}", self.config.info_log_path)
+            log_msg = (
+                f"开始计算分子结构相似性，用户输入的SMILES: {user_smiles}"
+            )
+            self.logger.log_info(log_msg, self.config.info_log_path)
             self.calculate_similarity_and_rank_pdbs(user_smiles, str(output_dir))
         
         # 提取结构信息并写入structure_info.md文件
