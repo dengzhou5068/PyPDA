@@ -67,7 +67,8 @@ class ReportGenerator:
                     for alt_name in alternative_names:
                         alt_full_name = alt_name.get('fullName', {}).get('value', 'N/A')
                         alt_ec_numbers = [ec.get('value') for ec in alt_name.get('ecNumbers', []) if ec.get('value')]
-                        f.write(f"  - {alt_full_name}" + (f" (EC: {', '.join(alt_ec_numbers)})" if alt_ec_numbers else "") + "\n")
+                        ec_part = f" (EC: {', '.join(alt_ec_numbers)})" if alt_ec_numbers else ""
+                        f.write(f"  - {alt_full_name}{ec_part}\n")
 
                 genes = pd.get('genes', [])
                 if genes:
@@ -153,7 +154,10 @@ class ReportGenerator:
 
                 f.write("\n### 详细特征信息\n")
                 found_any_detailed_feature = False
-                detailed_feature_order = ["Chain", "Region", "Active site", "Binding site", "Modified residue", "Mutagenesis", "Domain"]
+                detailed_feature_order = [
+                    "Chain", "Region", "Active site", "Binding site",
+                    "Modified residue", "Mutagenesis", "Domain"
+                ]
                 for dt in detailed_feature_order:
                     if features['detailed'].get(dt):
                         found_any_detailed_feature = True
