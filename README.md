@@ -9,6 +9,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **📋 结构信息提取**：自动从PDB文件中提取PDB ID、结构标题、实验方法和分辨率范围，生成结构化报告
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
+- **🎯 OpenTargets数据查询**：查询靶点-疾病关联、疾病-药物关联等信息
 - **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
 - **⚡ 并行计算支持**：采用多线程和多进程并行处理，显著提升大规模数据处理速度
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
@@ -182,6 +183,72 @@ python pypda.py uniprot fetch <accession> [output_dir]
 python pypda.py uniprot fetch TP53
 ```
 
+#### 2.4 OpenTargets数据查询工具 (`opentargets`)
+
+用于从OpenTargets数据库查询靶点-疾病和靶点-药物关联信息。
+
+##### 2.4.1 查询疾病关联药物 (`disease-drugs`)
+
+根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的药物信息
+
+```bash
+python pypda.py opentargets disease-drugs <disease_name> [--disease-id <id>] [--limit <n>] [-o <output_dir>]
+```
+
+- **参数**：
+  - `disease_name`: 疾病名称（例如：breast cancer）
+  - `--disease-id`: 可选，疾病的EFO ID，如果提供则跳过疾病名称解析
+  - `--limit`: 返回结果数量限制，默认值为100
+  - `-o`: 输出目录，默认值为`result/opentargets/疾病名_YYYYMMDD_HHMMSS`
+
+**示例**：
+
+```bash
+python pypda.py opentargets disease-drugs "breast cancer"
+python pypda.py opentargets disease-drugs "diabetes" --limit 50
+```
+
+##### 2.4.2 查询基因关联疾病 (`target-associations`)
+
+根据基因名称，查询OpenTargets数据库中该基因关联的疾病信息
+
+```bash
+python pypda.py opentargets target-associations <gene_name> [--limit <n>] [-o <output_dir>]
+```
+
+- **参数**：
+  - `gene_name`: 基因名称（例如：TP53）
+  - `--limit`: 返回结果数量限制，默认值为100
+  - `-o`: 输出目录，默认值为`result/opentargets/基因名_YYYYMMDD_HHMMSS`
+
+**示例**：
+
+```bash
+python pypda.py opentargets target-associations TP53
+python pypda.py opentargets target-associations EGFR --limit 50
+```
+
+##### 2.4.3 查询疾病关联靶点 (`disease-associations`)
+
+根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的靶点信息
+
+```bash
+python pypda.py opentargets disease-associations <disease_name> [--disease-id <id>] [--limit <n>] [-o <output_dir>]
+```
+
+- **参数**：
+  - `disease_name`: 疾病名称（例如：breast cancer）
+  - `--disease-id`: 可选，疾病的EFO ID，如果提供则跳过疾病名称解析
+  - `--limit`: 返回结果数量限制，默认值为100
+  - `-o`: 输出目录，默认值为`result/opentargets/疾病名_YYYYMMDD_HHMMSS`
+
+**示例**：
+
+```bash
+python pypda.py opentargets disease-associations "Alzheimer"
+python pypda.py opentargets disease-associations "Parkinson" --limit 50
+```
+
 ## 📁 目录结构说明
 
 项目采用统一的目录结构管理所有输出文件：
@@ -195,6 +262,7 @@ result/
 ├── pdb_output/             # PDB处理结果
 ├── protein_sequences/      # 蛋白质序列结果
 ├── uniprot_reports/        # UniProt数据结果
+├── opentargets/            # OpenTargets数据查询结果
 └── temp/                   # 临时文件目录
 ```
 
@@ -203,7 +271,7 @@ result/
 ### 序列分析输出
 
 - **FASTA文件**：包含蛋白质序列
-- **domain\_info.md**：结构域信息报告
+- **domain_info.md**：结构域信息报告
 - **JSON文件**：原始UniProt数据（命名格式：`基因名_YYYYMMDD_HHMMSS.json`）
 - **Markdown报告**：蛋白质详细信息（命名格式：`基因名_YYYYMMDD_HHMMSS.md`）
 
@@ -227,6 +295,9 @@ pypda/
 ├── logger/                 # 日志管理模块
 │   ├── __init__.py
 │   └── logger.py           # 日志记录功能
+├── opentargets/            # OpenTargets数据查询模块
+│   ├── __init__.py
+│   └── opentargets_api.py  # OpenTargets API交互
 ├── pdb/                    # PDB处理模块
 │   ├── __init__.py
 │   └── pdb_processor.py    # PDB文件处理功能
@@ -262,6 +333,14 @@ pypda/
   - `sequence/sequence_processor.py`：序列分析功能
   - `pdb/pdb_processor.py`：PDB文件处理
 - **主要更新**：
+  - **版本 0.6.0**：
+    - 新增OpenTargets数据查询模块，支持靶点-疾病和靶点-药物信息查询
+    - 实现`disease-drugs`命令：查询特定疾病关联的药物信息
+    - 实现`target-associations`命令：查询特定基因关联的疾病信息
+    - 实现`disease-associations`命令：查询特定疾病关联的靶点信息
+    - 支持疾病名称到EFO ID的自动转换，支持交互式选择
+    - 支持基因名称到Ensembl ID的自动转换
+    - 集成OpenTargets GraphQL API、Ensembl API和OLS API
   - **版本 0.5.0**：
     - 增强种属信息提取功能，支持从多个来源提取种属信息
     - 重构PDB搜索功能，改用pypdb库直接搜索PDB数据库
@@ -285,4 +364,3 @@ pypda/
 完整依赖列表参见`requirements.txt`
 
 > **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smiles`参数的结构相似性计算功能。
-
