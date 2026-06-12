@@ -20,6 +20,7 @@ from uniprot.uniprot_api import UniProtAPI
 from uniprot.protein_analyzer import ProteinAnalyzer
 from report.report_generator import ReportGenerator
 from utils.common_utils import CommonUtils
+from opentargets.opentargets_api import OpenTargetsAPI
 
 
 class PypdaApp:
@@ -32,6 +33,7 @@ class PypdaApp:
             self.config, self.logger, self.uniprot_api
         )
         self.pdb_processor: Optional[Any] = None  # 延迟实例化，只在执行pdb命令时实例化
+        self.opentargets_api = OpenTargetsAPI(self.config, self.logger)
 
     def _get_uniprot_id_and_handle_error(
         self, protein_name: str, task_context: str
@@ -233,6 +235,96 @@ class PypdaApp:
             help="要分析的UniProt蛋白质信息JSON文件路径。"
         )
 
+    def _setup_opentargets_parser(self, subparsers: argparse._SubParsersAction) -> None:
+        """设置OpenTargets数据查询工具的子命令解析器"""
+        opentargets_parser = subparsers.add_parser(
+            "opentargets",
+            help="OpenTargets数据查询工具，支持靶点-疾病和靶点-药物信息查询。",
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+        opentargets_subparsers = opentargets_parser.add_subparsers(dest="command", required=True, help="OpenTargets查询命令")
+
+        # opentargets disease-drugs命令
+        disease_drugs_parser = opentargets_subparsers.add_parser(
+            "disease-drugs",
+            help="查询特定疾病关联的药物信息。",
+            description="""
+            根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的药物信息，
+            包括药物名称、研发阶段和状态等。
+            """
+        )
+        disease_drugs_parser.add_argument("disease_name", type=str, help="疾病名称，例如: breast cancer。")
+        disease_drugs_parser.add_argument(
+            "--disease-id",
+            type=str,
+            default=None,
+            help="疾病的EFO ID，如果提供则跳过疾病名称解析。"
+        )
+        disease_drugs_parser.add_argument(
+            "--limit",
+            type=int,
+            default=100,
+            help="返回结果数量限制 (默认: 100)。"
+        )
+        disease_drugs_parser.add_argument(
+            "-o", "--output_dir",
+            type=str,
+            default=None,
+            help="保存结果的输出目录 (默认: result/opentargets/疾病名_YYYYMMDD_HHMMSS)。"
+        )
+
+        # opentargets target-associations命令
+        target_associations_parser = opentargets_subparsers.add_parser(
+            "target-associations",
+            help="查询特定基因关联的疾病信息。",
+            description="""
+            根据基因名称，查询OpenTargets数据库中该基因关联的疾病信息，
+            包括疾病名称、关联分数和数据源分数等。
+            """
+        )
+        target_associations_parser.add_argument("gene_name", type=str, help="基因名称，例如: TP53。")
+        target_associations_parser.add_argument(
+            "--limit",
+            type=int,
+            default=100,
+            help="返回结果数量限制 (默认: 100)。"
+        )
+        target_associations_parser.add_argument(
+            "-o", "--output_dir",
+            type=str,
+            default=None,
+            help="保存结果的输出目录 (默认: result/opentargets/基因名_YYYYMMDD_HHMMSS)。"
+        )
+
+        # opentargets disease-associations命令
+        disease_associations_parser = opentargets_subparsers.add_parser(
+            "disease-associations",
+            help="查询特定疾病关联的靶点信息。",
+            description="""
+            根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的靶点信息，
+            包括靶点名称、关联分数和数据源分数等。
+            """
+        )
+        disease_associations_parser.add_argument("disease_name", type=str, help="疾病名称，例如: breast cancer。")
+        disease_associations_parser.add_argument(
+            "--disease-id",
+            type=str,
+            default=None,
+            help="疾病的EFO ID，如果提供则跳过疾病名称解析。"
+        )
+        disease_associations_parser.add_argument(
+            "--limit",
+            type=int,
+            default=100,
+            help="返回结果数量限制 (默认: 100)。"
+        )
+        disease_associations_parser.add_argument(
+            "-o", "--output_dir",
+            type=str,
+            default=None,
+            help="保存结果的输出目录 (默认: result/opentargets/疾病名_YYYYMMDD_HHMMSS)。"
+        )
+
     def setup_parser(self) -> argparse.ArgumentParser:
         """设置命令行参数解析器
 
@@ -244,17 +336,18 @@ class PypdaApp:
             formatter_class=argparse.RawTextHelpFormatter
         )
 
-        parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.2.0')
+        parser.add_argument('-v', '--version', action='version', version='%(prog)s 0.6.0')
 
         subparsers = parser.add_subparsers(
             dest="tool",
             required=True,
-            help="选择要使用的工具：序列处理 (seq), PDB文件处理 (pdb), 或UniProt数据分析 (uniprot)。"
+            help="选择要使用的工具：序列处理 (seq), PDB文件处理 (pdb), UniProt数据分析 (uniprot), 或OpenTargets数据查询 (opentargets)。"
         )
 
         self._setup_seq_parser(subparsers)
         self._setup_pdb_parser(subparsers)
         self._setup_uniprot_parser(subparsers)
+        self._setup_opentargets_parser(subparsers)
 
         return parser
 
@@ -331,6 +424,105 @@ class PypdaApp:
                     protein_info = analyzer.extract_protein_info(data)
                     md_filename = str(Path(args.file).with_suffix('.md'))
                     ReportGenerator.generate_md_report(protein_info, md_filename)
+            elif args.tool == "opentargets":
+                if args.command == "disease-drugs":
+                    # 获取疾病ID
+                    if args.disease_id:
+                        disease_id = args.disease_id
+                    else:
+                        disease_id = self.opentargets_api.get_disease_efo_id(args.disease_name)
+                        if not disease_id:
+                            self.logger.log_error(
+                                f"无法获取疾病 '{args.disease_name}' 的EFO ID",
+                                self.config.error_log_path
+                            )
+                            return
+
+                    # 查询疾病药物信息
+                    print(f"开始查询疾病 {disease_id} 的药物信息...")
+                    data = self.opentargets_api.query_disease_drugs(disease_id, args.limit)
+                    if not data:
+                        self.logger.log_error("查询疾病药物信息失败", self.config.error_log_path)
+                        return
+
+                    # 设置输出目录
+                    if args.output_dir is None:
+                        output_dir_path_str, _ = CommonUtils.get_output_dir(
+                            "result", "opentargets", args.disease_name
+                        )
+                        output_dir_path = Path(output_dir_path_str)
+                    else:
+                        output_dir_path = Path(args.output_dir)
+                    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+                    # 保存结果
+                    json_filename = CommonUtils.save_to_json(data, f"{disease_id}_drugs", str(output_dir_path))
+                    print(f"疾病药物信息已保存至 {json_filename}")
+
+                elif args.command == "target-associations":
+                    # 获取基因Ensembl ID
+                    gene_id = self.opentargets_api.get_ensembl_id(args.gene_name)
+                    if not gene_id:
+                        self.logger.log_error(
+                            f"无法获取基因 '{args.gene_name}' 的Ensembl ID",
+                            self.config.error_log_path
+                        )
+                        return
+
+                    # 查询基因关联疾病信息
+                    print(f"开始查询基因 {gene_id} 关联的疾病...")
+                    data = self.opentargets_api.query_target_associations(gene_id, args.limit)
+                    if not data:
+                        self.logger.log_error("查询基因关联疾病失败", self.config.error_log_path)
+                        return
+
+                    # 设置输出目录
+                    if args.output_dir is None:
+                        output_dir_path_str, _ = CommonUtils.get_output_dir(
+                            "result", "opentargets", args.gene_name
+                        )
+                        output_dir_path = Path(output_dir_path_str)
+                    else:
+                        output_dir_path = Path(args.output_dir)
+                    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+                    # 保存结果
+                    json_filename = CommonUtils.save_to_json(data, f"{gene_id}_associations", str(output_dir_path))
+                    print(f"基因关联疾病信息已保存至 {json_filename}")
+
+                elif args.command == "disease-associations":
+                    # 获取疾病ID
+                    if args.disease_id:
+                        disease_id = args.disease_id
+                    else:
+                        disease_id = self.opentargets_api.get_disease_efo_id(args.disease_name)
+                        if not disease_id:
+                            self.logger.log_error(
+                                f"无法获取疾病 '{args.disease_name}' 的EFO ID",
+                                self.config.error_log_path
+                            )
+                            return
+
+                    # 查询疾病关联靶点信息
+                    print(f"开始查询疾病 {disease_id} 关联的靶点...")
+                    data = self.opentargets_api.query_disease_associations(disease_id, args.limit)
+                    if not data:
+                        self.logger.log_error("查询疾病关联靶点失败", self.config.error_log_path)
+                        return
+
+                    # 设置输出目录
+                    if args.output_dir is None:
+                        output_dir_path_str, _ = CommonUtils.get_output_dir(
+                            "result", "opentargets", args.disease_name
+                        )
+                        output_dir_path = Path(output_dir_path_str)
+                    else:
+                        output_dir_path = Path(args.output_dir)
+                    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+                    # 保存结果
+                    json_filename = CommonUtils.save_to_json(data, f"{disease_id}_targets", str(output_dir_path))
+                    print(f"疾病关联靶点信息已保存至 {json_filename}")
         except Exception as e:
             msg = f"应用程序运行过程中发生未捕获的错误: {e}"
             self.logger.log_error(msg, self.config.error_log_path)
