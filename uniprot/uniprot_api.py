@@ -43,7 +43,7 @@ class UniProtAPI:
         session.headers.update({
             'Accept': 'application/json',
             'User-Agent': (
-                'PyPDA/0.5.0 '
+                'PyPDA/0.6.0 '
                 '(https://gitee.com/coding_playground/py-pda; '
                 'dengzho5068@foxmail.com)'
             )
