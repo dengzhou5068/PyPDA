@@ -69,7 +69,14 @@ class OpenTargetsAPI:
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
-            target_id = data.get("id")
+            # Ensembl API可能返回列表或字典
+            if isinstance(data, list) and len(data) > 0:
+                target_id = data[0].get("id")
+            elif isinstance(data, dict):
+                target_id = data.get("id")
+            else:
+                target_id = None
+                
             if not target_id:
                 error_msg = f"未找到基因 '{gene_name}' 的Ensembl ID"
                 self.logger.log_error(error_msg, self.config.error_log_path)
@@ -119,6 +126,11 @@ class OpenTargetsAPI:
                 return None
 
             docs = data["response"]["docs"]
+            if not docs or len(docs) == 0:
+                error_msg = f"OLS API返回空结果列表 (疾病: {disease_name})"
+                self.logger.log_error(error_msg, self.config.error_log_path)
+                return None
+                
             sorted_disease_hits = sorted(
                 docs,
                 key=lambda x: x["label"].lower().startswith(disease_name.lower()),
@@ -236,15 +248,23 @@ class OpenTargetsAPI:
           disease(efoId: $diseaseId) {
             id
             name
-            knownDrugs(size: $size) {
+            associatedTargets(
+              page: {index: 0, size: $size}
+              orderByScore: "score"
+              enableIndirect: true
+            ) {
               count
               rows {
-                drug {
+                target {
                   id
-                  name
+                  approvedSymbol
+                  approvedName
+                  tractability {
+                    modality
+                    label
+                  }
                 }
-                phase
-                status
+                score
               }
             }
           }
@@ -332,5 +352,42 @@ class OpenTargetsAPI:
         variables = {
             "id": disease_id,
             "size": limit
+        }
+        return self.send_graphql_request(query, variables)
+
+    def query_target_drugs(self, gene_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
+        """查询特定基因关联的药物信息
+
+        Args:
+            gene_id: 基因的Ensembl ID
+            limit: 返回结果数量限制
+
+        Returns:
+            药物信息数据，如果失败则返回None
+        """
+        query = """
+        query TargetDrugs($id: String!) {
+          target(ensemblId: $id) {
+            id
+            approvedSymbol
+            approvedName
+            tractability {
+              modality
+              label
+            }
+            associatedDiseases(page: {index: 0, size: 5}) {
+              rows {
+                disease {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = {
+            "id": gene_id
         }
         return self.send_graphql_request(query, variables)
