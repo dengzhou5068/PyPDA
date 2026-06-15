@@ -9,7 +9,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **📋 结构信息提取**：自动从PDB文件中提取PDB ID、结构标题、实验方法和分辨率范围，生成结构化报告
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
-- **🎯 OpenTargets数据查询**：查询靶点-疾病关联、疾病-药物关联等信息
+- **🎯 OpenTargets数据查询**：查询疾病药物关联、基因疾病关联和疾病靶点关联信息
 - **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
 - **⚡ 并行计算支持**：采用多线程和多进程并行处理，显著提升大规模数据处理速度
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
@@ -161,11 +161,74 @@ python pypda.py pdb fetch "DNA polymerase"
 python pypda.py pdb fetch HDAC1 --smiles "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
 ```
 
-#### 2.3 UniProt数据处理工具 (`uniprot`)
+#### 2.3 OpenTargets数据查询工具 (`opentargets`)
+
+用于查询OpenTargets数据库，获取疾病药物关联、基因疾病关联和疾病靶点关联信息。
+
+##### 2.3.1 查询疾病相关药物 (`disease-drugs`)
+
+查询特定疾病的相关药物信息
+
+```bash
+python pypda.py opentargets disease-drugs [--disease-name <疾病名称>] [--disease-id <EFO ID>] [--limit <数量>] [--format <格式>]
+```
+
+- **参数**：
+  - `--disease-name`: 疾病名称（例如：breast cancer）
+  - `--disease-id`: 疾病的EFO ID（例如：MONDO_0007254）
+  - `--limit`: 返回结果数量限制，默认100
+  - `--format`: 输出格式（json/csv/all），默认json
+
+**示例**：
+
+```bash
+python pypda.py opentargets disease-drugs --disease-name "lung cancer" --limit 50 --format csv
+```
+
+##### 2.3.2 查询基因关联疾病 (`target-associations`)
+
+查询特定基因关联的疾病信息
+
+```bash
+python pypda.py opentargets target-associations <gene_name> [--limit <数量>] [--format <格式>]
+```
+
+- **参数**：
+  - `gene_name`: 基因名称（例如：TP53）
+  - `--limit`: 返回结果数量限制，默认100
+  - `--format`: 输出格式（json/csv/all），默认json
+
+**示例**：
+
+```bash
+python pypda.py opentargets target-associations EGFR --limit 50 --format csv
+```
+
+##### 2.3.3 查询疾病关联靶点 (`disease-associations`)
+
+查询特定疾病关联的靶点信息
+
+```bash
+python pypda.py opentargets disease-associations [--disease-name <疾病名称>] [--disease-id <EFO ID>] [--limit <数量>] [--format <格式>]
+```
+
+- **参数**：
+  - `--disease-name`: 疾病名称（例如：diabetes）
+  - `--disease-id`: 疾病的EFO ID（例如：EFO_0010164）
+  - `--limit`: 返回结果数量限制，默认100
+  - `--format`: 输出格式（json/csv/all），默认json
+
+**示例**：
+
+```bash
+python pypda.py opentargets disease-associations --disease-name "breast cancer" --limit 50 --format csv
+```
+
+#### 2.4 UniProt数据处理工具 (`uniprot`)
 
 用于从UniProt数据库获取蛋白质注释信息并生成分析报告。
 
-##### 2.3.1 获取UniProt数据并生成报告 (`fetch`)
+##### 2.4.1 获取UniProt数据并生成报告 (`fetch`)
 
 从UniProt API获取蛋白质数据并生成JSON和Markdown报告
 
@@ -183,72 +246,6 @@ python pypda.py uniprot fetch <accession> [output_dir]
 python pypda.py uniprot fetch TP53
 ```
 
-#### 2.4 OpenTargets数据查询工具 (`opentargets`)
-
-用于从OpenTargets数据库查询靶点-疾病和靶点-药物关联信息。
-
-##### 2.4.1 查询疾病关联药物 (`disease-drugs`)
-
-根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的药物信息
-
-```bash
-python pypda.py opentargets disease-drugs <disease_name> [--disease-id <id>] [--limit <n>] [-o <output_dir>]
-```
-
-- **参数**：
-  - `disease_name`: 疾病名称（例如：breast cancer）
-  - `--disease-id`: 可选，疾病的EFO ID，如果提供则跳过疾病名称解析
-  - `--limit`: 返回结果数量限制，默认值为100
-  - `-o`: 输出目录，默认值为`result/opentargets/疾病名_YYYYMMDD_HHMMSS`
-
-**示例**：
-
-```bash
-python pypda.py opentargets disease-drugs "breast cancer"
-python pypda.py opentargets disease-drugs "diabetes" --limit 50
-```
-
-##### 2.4.2 查询基因关联疾病 (`target-associations`)
-
-根据基因名称，查询OpenTargets数据库中该基因关联的疾病信息
-
-```bash
-python pypda.py opentargets target-associations <gene_name> [--limit <n>] [-o <output_dir>]
-```
-
-- **参数**：
-  - `gene_name`: 基因名称（例如：TP53）
-  - `--limit`: 返回结果数量限制，默认值为100
-  - `-o`: 输出目录，默认值为`result/opentargets/基因名_YYYYMMDD_HHMMSS`
-
-**示例**：
-
-```bash
-python pypda.py opentargets target-associations TP53
-python pypda.py opentargets target-associations EGFR --limit 50
-```
-
-##### 2.4.3 查询疾病关联靶点 (`disease-associations`)
-
-根据疾病名称或EFO ID，查询OpenTargets数据库中该疾病关联的靶点信息
-
-```bash
-python pypda.py opentargets disease-associations <disease_name> [--disease-id <id>] [--limit <n>] [-o <output_dir>]
-```
-
-- **参数**：
-  - `disease_name`: 疾病名称（例如：breast cancer）
-  - `--disease-id`: 可选，疾病的EFO ID，如果提供则跳过疾病名称解析
-  - `--limit`: 返回结果数量限制，默认值为100
-  - `-o`: 输出目录，默认值为`result/opentargets/疾病名_YYYYMMDD_HHMMSS`
-
-**示例**：
-
-```bash
-python pypda.py opentargets disease-associations "Alzheimer"
-python pypda.py opentargets disease-associations "Parkinson" --limit 50
-```
-
 ## 📁 目录结构说明
 
 项目采用统一的目录结构管理所有输出文件：
@@ -262,7 +259,6 @@ result/
 ├── pdb_output/             # PDB处理结果
 ├── protein_sequences/      # 蛋白质序列结果
 ├── uniprot_reports/        # UniProt数据结果
-├── opentargets/            # OpenTargets数据查询结果
 └── temp/                   # 临时文件目录
 ```
 
@@ -295,9 +291,6 @@ pypda/
 ├── logger/                 # 日志管理模块
 │   ├── __init__.py
 │   └── logger.py           # 日志记录功能
-├── opentargets/            # OpenTargets数据查询模块
-│   ├── __init__.py
-│   └── opentargets_api.py  # OpenTargets API交互
 ├── pdb/                    # PDB处理模块
 │   ├── __init__.py
 │   └── pdb_processor.py    # PDB文件处理功能
@@ -321,7 +314,7 @@ pypda/
 
 ## ⚙️ 配置文件说明
 
-1. **exclude\_residues.ini**：定义需要排除的残基类型
+1. **exclude_residues.ini**：定义需要排除的残基类型
    - 在配体提取时用于过滤不需要考虑的残基
 
 ## 🔧 开发信息
@@ -334,21 +327,7 @@ pypda/
   - `pdb/pdb_processor.py`：PDB文件处理
 - **主要更新**：
   - **版本 0.6.0**：
-    - 新增OpenTargets数据查询模块，支持靶点-疾病和靶点-药物信息查询
-    - 实现`disease-drugs`命令：查询特定疾病关联的药物信息
-    - 实现`target-associations`命令：查询特定基因关联的疾病信息
-    - 实现`disease-associations`命令：查询特定疾病关联的靶点信息
-    - 支持疾病名称到EFO ID的自动转换，支持交互式选择
-    - 支持基因名称到Ensembl ID的自动转换
-    - 集成OpenTargets GraphQL API、Ensembl API和OLS API
-  - **版本 0.5.0**：
-    - 增强种属信息提取功能，支持从多个来源提取种属信息
-    - 重构PDB搜索功能，改用pypdb库直接搜索PDB数据库
-    - 不再经过获取UniProt ID的步骤，直接使用查询字符串搜索PDB
-    - 优化PDB ID获取流程，提高搜索效率
-    - 优化PDB文件分类逻辑：先根据是否有配体分类到 no_ligand 或 with_ligand 文件夹，再根据种属进行子分类
-    - 添加种属信息提取功能，将种属信息补充到 structure_info.md 文件中
-    - 优化文件夹创建逻辑，避免创建空文件夹
+    - 新增OpenTargets数据查询功能，支持疾病药物查询、基因关联疾病查询和疾病关联靶点查询
 
 ## 📋 依赖库
 
@@ -364,3 +343,4 @@ pypda/
 完整依赖列表参见`requirements.txt`
 
 > **注意**：RDKit库需要额外安装，可通过`pip install rdkit>=2023.03.01`命令安装。该库用于支持`--smiles`参数的结构相似性计算功能。
+
