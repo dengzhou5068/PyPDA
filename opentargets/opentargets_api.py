@@ -3,6 +3,7 @@
 """
 OpenTargets API交互模块
 """
+
 import json
 import requests
 from requests.adapters import HTTPAdapter
@@ -25,9 +26,6 @@ class OpenTargetsAPI:
         """
         self.config = config
         self.logger = logger
-        self.opentargets_api_base_url = config.opentargets_api_base_url
-        self.ensembl_api_url = config.ensembl_api_url
-        self.ols_url = config.ols_url
         self.session = self._setup_session()
 
     def _setup_session(self) -> requests.Session:
@@ -46,12 +44,23 @@ class OpenTargetsAPI:
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'User-Agent': (
-                'PyPDA/0.5.0 '
+                'PyPDA/0.6.0 '
                 '(https://gitee.com/coding_playground/py-pda; '
                 'dengzho5068@foxmail.com)'
             )
         })
         return session
+
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """发送HTTP请求并处理错误"""
+        try:
+            response = self.session.request(method, url, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            error_msg = f"API请求失败: {e}"
+            self.logger.log_error(error_msg, self.config.error_log_path)
+            raise
 
     def get_ensembl_id(self, gene_name: str) -> Optional[str]:
         """根据基因名称获取Ensembl ID
@@ -62,42 +71,22 @@ class OpenTargetsAPI:
         Returns:
             Ensembl ID，如果未找到则返回None
         """
-        url = f"{self.ensembl_api_url}{gene_name}"
+        url = f"{self.config.ensembl_api_url}{gene_name}"
         params = {'content-type': 'application/json'}
 
         try:
-            response = self.session.get(url, params=params, timeout=30)
-            response.raise_for_status()
+            response = self._make_request('GET', url, params=params)
             data = response.json()
-            # Ensembl API可能返回列表或字典
-            if isinstance(data, list) and len(data) > 0:
-                target_id = data[0].get("id")
-            elif isinstance(data, dict):
-                target_id = data.get("id")
-            else:
-                target_id = None
-                
+            target_id = data.get("id")
             if not target_id:
                 error_msg = f"未找到基因 '{gene_name}' 的Ensembl ID"
                 self.logger.log_error(error_msg, self.config.error_log_path)
                 return None
             return target_id
-        except requests.exceptions.HTTPError as e:
-            error_msg = f"HTTP请求错误 (Ensembl API - {url}): "
-            error_msg += f"{e.response.status_code} - {e.response.text}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
-        except requests.exceptions.ConnectionError:
-            self.logger.log_error(f"网络连接错误 (Ensembl API - {url})", self.config.error_log_path)
-        except requests.exceptions.Timeout:
-            self.logger.log_error(f"请求超时 (Ensembl API - {url})", self.config.error_log_path)
-        except json.JSONDecodeError:
-            error_msg = f"Ensembl API返回无效JSON (Ensembl API - {url}): "
-            error_msg += f"{response.text[:200]}..."
-            self.logger.log_error(error_msg, self.config.error_log_path)
         except Exception as e:
-            error_msg = f"获取Ensembl ID失败: {e} (Ensembl API - {url})"
+            error_msg = f"获取Ensembl ID失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
-        return None
+            return None
 
     def get_disease_efo_id(self, disease_name: str, interactive: bool = True) -> Optional[str]:
         """根据疾病名称获取EFO ID
@@ -109,6 +98,7 @@ class OpenTargetsAPI:
         Returns:
             疾病的EFO ID，如果未找到则返回None
         """
+        url = self.config.ols_url
         params = {
             "q": disease_name,
             "ontology": "efo",
@@ -116,8 +106,7 @@ class OpenTargetsAPI:
         }
 
         try:
-            response = self.session.get(self.ols_url, params=params, timeout=30)
-            response.raise_for_status()
+            response = self._make_request('GET', url, params=params)
             data = response.json()
 
             if data["response"]["numFound"] == 0:
@@ -126,11 +115,6 @@ class OpenTargetsAPI:
                 return None
 
             docs = data["response"]["docs"]
-            if not docs or len(docs) == 0:
-                error_msg = f"OLS API返回空结果列表 (疾病: {disease_name})"
-                self.logger.log_error(error_msg, self.config.error_log_path)
-                return None
-                
             sorted_disease_hits = sorted(
                 docs,
                 key=lambda x: x["label"].lower().startswith(disease_name.lower()),
@@ -141,29 +125,17 @@ class OpenTargetsAPI:
                 return sorted_disease_hits[0]["iri"].split("/")[-1]
             else:
                 if interactive:
-                    return self._select_disease_interactive(sorted_disease_hits, disease_name)
+                    return self._select_disease_interactive(docs, disease_name)
                 else:
                     self.logger.log_info(
                         f"找到多个匹配的疾病: {disease_name}，使用第一个匹配",
                         self.config.info_log_path
                     )
                     return sorted_disease_hits[0]["iri"].split("/")[-1]
-        except requests.exceptions.HTTPError as e:
-            error_msg = f"HTTP请求错误 (OLS API - {self.ols_url}): "
-            error_msg += f"{e.response.status_code} - {e.response.text}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
-        except requests.exceptions.ConnectionError:
-            self.logger.log_error(f"网络连接错误 (OLS API - {self.ols_url})", self.config.error_log_path)
-        except requests.exceptions.Timeout:
-            self.logger.log_error(f"请求超时 (OLS API - {self.ols_url})", self.config.error_log_path)
-        except json.JSONDecodeError:
-            error_msg = f"OLS API返回无效JSON (OLS API - {self.ols_url}): "
-            error_msg += f"{response.text[:200]}..."
-            self.logger.log_error(error_msg, self.config.error_log_path)
         except Exception as e:
-            error_msg = f"获取EFO ID失败: {e} (OLS API - {self.ols_url})"
+            error_msg = f"获取EFO ID失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
-        return None
+            return None
 
     def _select_disease_interactive(self, docs: List[Dict[str, Any]], disease_name: str) -> Optional[str]:
         """交互式选择疾病"""
@@ -173,7 +145,7 @@ class OpenTargetsAPI:
         for index, doc in enumerate(docs, start=1):
             efo_id = doc["iri"].split("/")[-1]
             label = doc.get('label', '未知')
-            description = doc.get('description', ['无描述'])[0] if isinstance(doc.get('description'), list) else doc.get('description', '无描述')
+            description = doc.get('description', '无描述')
             print(f"{index}. {label}")
             print(f"   EFO ID: {efo_id}")
             if description and description != '无描述':
@@ -205,33 +177,22 @@ class OpenTargetsAPI:
         """发送GraphQL请求
 
         Args:
-            query: GraphQL查询字符串
+            query: GraphQL查询语句
             variables: 查询变量
 
         Returns:
-            API返回的JSON数据，如果失败则返回None
+            查询结果字典，如果失败则返回None
         """
+        url = self.config.opentargets_api_base_url
         payload = {"query": query, "variables": variables}
 
         try:
-            response = self.session.post(self.opentargets_api_base_url, json=payload, timeout=60)
-            response.raise_for_status()
+            response = self._make_request('POST', url, json=payload)
             return response.json()
-        except requests.exceptions.HTTPError as e:
-            error_msg = f"HTTP请求错误 (OpenTargets API - {self.opentargets_api_base_url}): "
-            error_msg += f"{e.response.status_code} - {e.response.text}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
-        except requests.exceptions.ConnectionError:
-            self.logger.log_error(f"网络连接错误 (OpenTargets API - {self.opentargets_api_base_url})", self.config.error_log_path)
-        except requests.exceptions.Timeout:
-            self.logger.log_error(f"请求超时 (OpenTargets API - {self.opentargets_api_base_url})", self.config.error_log_path)
-        except json.JSONDecodeError:
-            error_msg = f"OpenTargets API返回无效JSON: {response.text[:200]}..."
-            self.logger.log_error(error_msg, self.config.error_log_path)
         except Exception as e:
-            error_msg = f"发送GraphQL请求失败: {e}"
+            error_msg = f"GraphQL请求失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
-        return None
+            return None
 
     def query_disease_drugs(self, disease_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
         """查询特定疾病的药物信息
@@ -241,30 +202,25 @@ class OpenTargetsAPI:
             limit: 返回结果数量限制
 
         Returns:
-            药物信息数据，如果失败则返回None
+            包含药物信息的字典，如果失败则返回None
         """
         query = """
-        query DiseaseDrugs($diseaseId: String!, $size: Int!) {
+        query DiseaseDrugs($diseaseId: String!) {
           disease(efoId: $diseaseId) {
             id
             name
-            associatedTargets(
-              page: {index: 0, size: $size}
-              orderByScore: "score"
-              enableIndirect: true
-            ) {
+            drugAndClinicalCandidates {
               count
               rows {
-                target {
+                id
+                maxClinicalStage
+                drug {
                   id
-                  approvedSymbol
-                  approvedName
-                  tractability {
-                    modality
-                    label
-                  }
+                  name
+                  maximumClinicalStage
+                  drugType
+                  tradeNames
                 }
-                score
               }
             }
           }
@@ -272,8 +228,7 @@ class OpenTargetsAPI:
         """
 
         variables = {
-            "diseaseId": disease_id,
-            "size": limit
+            "diseaseId": disease_id
         }
         return self.send_graphql_request(query, variables)
 
@@ -285,7 +240,7 @@ class OpenTargetsAPI:
             limit: 返回结果数量限制
 
         Returns:
-            疾病关联数据，如果失败则返回None
+            包含疾病关联信息的字典，如果失败则返回None
         """
         query = """
         query TargetAssociations($id: String!, $size: Int!) {
@@ -322,7 +277,7 @@ class OpenTargetsAPI:
             limit: 返回结果数量限制
 
         Returns:
-            靶点关联数据，如果失败则返回None
+            包含靶点关联信息的字典，如果失败则返回None
         """
         query = """
         query DiseaseAssociations($id: String!, $size: Int!) {
@@ -352,42 +307,5 @@ class OpenTargetsAPI:
         variables = {
             "id": disease_id,
             "size": limit
-        }
-        return self.send_graphql_request(query, variables)
-
-    def query_target_drugs(self, gene_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
-        """查询特定基因关联的药物信息
-
-        Args:
-            gene_id: 基因的Ensembl ID
-            limit: 返回结果数量限制
-
-        Returns:
-            药物信息数据，如果失败则返回None
-        """
-        query = """
-        query TargetDrugs($id: String!) {
-          target(ensemblId: $id) {
-            id
-            approvedSymbol
-            approvedName
-            tractability {
-              modality
-              label
-            }
-            associatedDiseases(page: {index: 0, size: 5}) {
-              rows {
-                disease {
-                  id
-                  name
-                }
-              }
-            }
-          }
-        }
-        """
-
-        variables = {
-            "id": gene_id
         }
         return self.send_graphql_request(query, variables)
