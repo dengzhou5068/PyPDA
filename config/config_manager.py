@@ -19,6 +19,6 @@ class ConfigManager:
         self.info_log_path: str = os.path.join(os.getcwd(), 'info.txt')
         self.uniprot_api_base_url: str = 'https://rest.uniprot.org/uniprotkb/'
         # OpenTargets相关配置
-        self.opentargets_api_base_url: str = 'https://api.opentargets.io/v4/graphql'
+        self.opentargets_api_base_url: str = 'https://api.platform.opentargets.org/api/v4/graphql'
         self.ensembl_api_url: str = 'https://rest.ensembl.org/xrefs/symbol/homo_sapiens/'
         self.ols_url: str = 'https://www.ebi.ac.uk/ols/api/search'
