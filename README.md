@@ -246,6 +246,23 @@ python pypda.py uniprot fetch <accession> [output_dir]
 python pypda.py uniprot fetch TP53
 ```
 
+##### 2.4.2 分析现有UniProt数据文件 (`analyze`)
+
+分析本地已有的UniProt蛋白质信息JSON文件，提取关键数据并生成Markdown格式的分析报告。
+
+```bash
+python pypda.py uniprot analyze <file>
+```
+
+- **参数**：
+  - `file`: 要分析的UniProt蛋白质信息JSON文件路径
+
+**示例**：
+
+```bash
+python pypda.py uniprot analyze result/uniprot_reports/TP53_20240101_120000/TP53_20240101_120000.json
+```
+
 ## 📁 目录结构说明
 
 项目采用统一的目录结构管理所有输出文件：
@@ -291,6 +308,10 @@ pypda/
 ├── logger/                 # 日志管理模块
 │   ├── __init__.py
 │   └── logger.py           # 日志记录功能
+├── opentargets/            # OpenTargets数据查询模块
+│   ├── __init__.py
+│   ├── opentargets_api.py  # OpenTargets API交互
+│   └── opentargets_processor.py # OpenTargets命令处理
 ├── pdb/                    # PDB处理模块
 │   ├── __init__.py
 │   └── pdb_processor.py    # PDB文件处理功能
