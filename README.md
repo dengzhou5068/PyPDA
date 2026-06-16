@@ -9,7 +9,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **📋 结构信息提取**：自动从PDB文件中提取PDB ID、结构标题、实验方法和分辨率范围，生成结构化报告
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
-- **🎯 OpenTargets数据查询**：查询疾病药物关联、基因疾病关联和疾病靶点关联信息
+- **🎯 OpenTargets数据查询**：查询疾病药物关联、靶点药物关联、基因疾病关联和疾病靶点关联信息
 - **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
 - **⚡ 并行计算支持**：采用多线程和多进程并行处理，显著提升大规模数据处理速度
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
@@ -185,7 +185,25 @@ python pypda.py opentargets disease-drugs [--disease-name <疾病名称>] [--dis
 python pypda.py opentargets disease-drugs --disease-name "lung cancer" --limit 50 --format csv
 ```
 
-##### 2.3.2 查询基因关联疾病 (`target-associations`)
+##### 2.3.2 查询靶点相关药物 (`target-drugs`)
+
+查询特定靶点的相关药物信息
+
+```bash
+python pypda.py opentargets target-drugs <gene_name> [--format <格式>]
+```
+
+- **参数**：
+  - `gene_name`: 基因名称（例如：EGFR）
+  - `--format`: 输出格式（json/csv/all），默认json
+
+**示例**：
+
+```bash
+python pypda.py opentargets target-drugs EGFR --format csv
+```
+
+##### 2.3.3 查询基因关联疾病 (`target-associations`)
 
 查询特定基因关联的疾病信息
 
@@ -204,7 +222,7 @@ python pypda.py opentargets target-associations <gene_name> [--limit <数量>] [
 python pypda.py opentargets target-associations EGFR --limit 50 --format csv
 ```
 
-##### 2.3.3 查询疾病关联靶点 (`disease-associations`)
+##### 2.3.4 查询疾病关联靶点 (`disease-associations`)
 
 查询特定疾病关联的靶点信息
 
@@ -276,6 +294,7 @@ result/
 ├── pdb_output/             # PDB处理结果
 ├── protein_sequences/      # 蛋白质序列结果
 ├── uniprot_reports/        # UniProt数据结果
+├── opentargets/           # OpenTargets查询结果
 └── temp/                   # 临时文件目录
 ```
 
@@ -348,7 +367,13 @@ pypda/
   - `pdb/pdb_processor.py`：PDB文件处理
 - **主要更新**：
   - **版本 0.6.0**：
-    - 新增OpenTargets数据查询功能，支持疾病药物查询、基因关联疾病查询和疾病关联靶点查询
+    - 新增OpenTargets数据查询功能，支持疾病药物查询、靶点药物查询、基因关联疾病查询和疾病关联靶点查询
+    - 修复OpenTargets API查询字段问题，将`knownDrugs`更新为`drugAndClinicalCandidates`
+    - 增强种属信息提取功能，支持从多个来源提取种属信息
+    - 重构PDB搜索功能，改用pypdb库直接搜索PDB数据库
+    - 优化PDB文件分类逻辑：先根据是否有配体分类到 no_ligand 或 with_ligand 文件夹，再根据种属进行子分类
+    - 添加种属信息提取功能，将种属信息补充到 structure_info.md 文件中
+    - 优化文件夹创建逻辑，避免创建空文件夹
 
 ## 📋 依赖库
 
