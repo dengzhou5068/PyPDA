@@ -126,6 +126,48 @@ class OpenTargetsProcessor:
             error_msg = f"处理基因关联疾病查询失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
 
+    def process_target_drugs(
+        self,
+        gene_name: str,
+        output_dir: Optional[str] = None,
+        output_format: str = 'json'
+    ) -> None:
+        """查询靶点相关药物
+
+        Args:
+            gene_name: 基因名称
+            output_dir: 输出目录
+            output_format: 输出格式（json/csv/all）
+        """
+        try:
+            gene_id = self.ot_api.get_ensembl_id(gene_name)
+            if not gene_id:
+                return
+
+            self.logger.log_info(f"开始查询靶点 {gene_id} 的相关药物", self.config.info_log_path)
+            data = self.ot_api.query_target_drugs(gene_id)
+            if not data:
+                return
+
+            if output_dir is None:
+                output_dir, _ = CommonUtils.get_output_dir("result", "opentargets", gene_id)
+            else:
+                Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+            json_filename = Path(output_dir) / f"{gene_id}_drugs.json"
+            with open(json_filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            print(f"JSON结果已保存到: {json_filename}")
+
+            if output_format == 'csv' or output_format == 'all':
+                csv_filename = json_filename.with_suffix('.csv')
+                self._write_target_drugs_csv(data, csv_filename)
+                print(f"CSV结果已保存到: {csv_filename}")
+
+        except Exception as e:
+            error_msg = f"处理靶点药物查询失败: {str(e)}"
+            self.logger.log_error(error_msg, self.config.error_log_path)
+
     def process_disease_associations(
         self,
         disease_name: Optional[str] = None,
@@ -216,6 +258,54 @@ class OpenTargetsProcessor:
                     ])
         except Exception as e:
             error_msg = f"写入疾病药物CSV失败: {str(e)}"
+            self.logger.log_error(error_msg, self.config.error_log_path)
+
+    def _write_target_drugs_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
+        """写入靶点药物信息的CSV格式"""
+        try:
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                headers = ["drug.id", "drug.name", "maxClinicalStage", "drugType", "tradeNames", "diseases"]
+                writer = csv.writer(csvfile)
+                writer.writerow(headers)
+
+                drugs = []
+                if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict):
+                    target = data['data'].get('target', {})
+                    if isinstance(target, dict):
+                        drug_candidates = target.get('drugAndClinicalCandidates', {})
+                        if isinstance(drug_candidates, dict):
+                            drugs = drug_candidates.get('rows', [])
+
+                if not isinstance(drugs, list):
+                    drugs = []
+
+                for drug_info in drugs:
+                    if not isinstance(drug_info, dict):
+                        continue
+                    drug = drug_info.get('drug', {})
+                    if not isinstance(drug, dict):
+                        drug = {}
+
+                    trade_names = drug.get('tradeNames', [])
+                    trade_names_str = ', '.join(trade_names) if isinstance(trade_names, list) else ''
+
+                    diseases = drug_info.get('diseases', [])
+                    if isinstance(diseases, list):
+                        disease_names = [d.get('diseaseFromSource', '') for d in diseases if isinstance(d, dict)]
+                        diseases_str = ', '.join(disease_names)
+                    else:
+                        diseases_str = ''
+
+                    writer.writerow([
+                        drug.get('id', ''),
+                        drug.get('name', ''),
+                        drug_info.get('maxClinicalStage', ''),
+                        drug.get('drugType', ''),
+                        trade_names_str,
+                        diseases_str
+                    ])
+        except Exception as e:
+            error_msg = f"写入靶点药物CSV失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
 
     def _write_target_associations_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
