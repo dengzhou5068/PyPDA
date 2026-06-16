@@ -232,6 +232,46 @@ class OpenTargetsAPI:
         }
         return self.send_graphql_request(query, variables)
 
+    def query_target_drugs(self, gene_id: str) -> Optional[Dict[str, Any]]:
+        """查询特定靶点的相关药物
+
+        Args:
+            gene_id: 基因的Ensembl ID
+
+        Returns:
+            包含药物信息的字典，如果失败则返回None
+        """
+        query = """
+        query TargetDrugs($id: String!) {
+          target(ensemblId: $id) {
+            id
+            approvedSymbol
+            drugAndClinicalCandidates {
+              count
+              rows {
+                id
+                maxClinicalStage
+                drug {
+                  id
+                  name
+                  maximumClinicalStage
+                  drugType
+                  tradeNames
+                }
+                diseases {
+                  diseaseFromSource
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = {
+            "id": gene_id
+        }
+        return self.send_graphql_request(query, variables)
+
     def query_target_associations(self, gene_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
         """查询特定基因关联的疾病
 
