@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-OpenTargets命令处理模块
+OpenTargets API交互模块
 """
 
-import csv
 import json
-from pathlib import Path
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from typing import Dict, Any, Optional, List
 
 from config.config_manager import ConfigManager
 from logger.logger import Logger
-from utils.common_utils import CommonUtils
-
-from .opentargets_api import OpenTargetsAPI
 
 
-class OpenTargetsProcessor:
-    """OpenTargets命令处理类，负责执行各种OpenTargets查询命令"""
+class OpenTargetsAPI:
+    """OpenTargets API交互类，负责从OpenTargets API获取数据"""
 
     def __init__(self, config: ConfigManager, logger: Logger) -> None:
-        """初始化OpenTargetsProcessor实例
+        """初始化OpenTargetsAPI实例
 
         Args:
             config: 配置管理器实例
@@ -28,399 +26,326 @@ class OpenTargetsProcessor:
         """
         self.config = config
         self.logger = logger
-        self.ot_api = OpenTargetsAPI(config, logger)
+        self.session = self._setup_session()
 
-    def process_disease_drugs(
-        self,
-        disease_name: Optional[str] = None,
-        disease_id: Optional[str] = None,
-        limit: int = 100,
-        output_dir: Optional[str] = None,
-        output_format: str = 'json'
-    ) -> None:
-        """查询疾病相关药物
+    def _setup_session(self) -> requests.Session:
+        """设置带有重试策略的requests会话"""
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "POST", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session = requests.Session()
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        session.headers.update({
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': (
+                'PyPDA/0.6.0 '
+                '(https://gitee.com/coding_playground/py-pda; '
+                'dengzho5068@foxmail.com)'
+            )
+        })
+        return session
 
-        Args:
-            disease_name: 疾病名称（与disease_id二选一）
-            disease_id: 疾病EFO ID（与disease_name二选一）
-            limit: 返回结果数量限制
-            output_dir: 输出目录
-            output_format: 输出格式（json/csv/all）
-        """
+    def _make_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """发送HTTP请求并处理错误"""
         try:
-            if disease_id:
-                selected_disease_id = disease_id
-            elif disease_name:
-                selected_disease_id = self.ot_api.get_disease_efo_id(disease_name, interactive=True)
-                if not selected_disease_id:
-                    return
-            else:
-                self.logger.log_error("必须提供disease_name或disease_id参数", self.config.error_log_path)
-                return
-
-            self.logger.log_info(f"开始查询疾病 {selected_disease_id} 的药物信息", self.config.info_log_path)
-            data = self.ot_api.query_disease_drugs(selected_disease_id, limit)
-            if not data:
-                return
-
-            if output_dir is None:
-                output_dir, _ = CommonUtils.get_output_dir("result", "opentargets", selected_disease_id)
-            else:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            json_filename = Path(output_dir) / f"{selected_disease_id}_drugs_{limit}.json"
-            with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print(f"JSON结果已保存到: {json_filename}")
-
-            if output_format == 'csv' or output_format == 'all':
-                csv_filename = json_filename.with_suffix('.csv')
-                self._write_disease_drugs_csv(data, csv_filename)
-                print(f"CSV结果已保存到: {csv_filename}")
-
-        except Exception as e:
-            error_msg = f"处理疾病药物查询失败: {str(e)}"
+            response = self.session.request(method, url, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            error_msg = f"API请求失败: {e}"
             self.logger.log_error(error_msg, self.config.error_log_path)
+            raise
 
-    def process_target_associations(
-        self,
-        gene_name: str,
-        limit: int = 100,
-        output_dir: Optional[str] = None,
-        output_format: str = 'json'
-    ) -> None:
-        """查询基因关联疾病
+    def get_ensembl_id(self, gene_name: str) -> Optional[str]:
+        """根据基因名称获取Ensembl ID
 
         Args:
             gene_name: 基因名称
-            limit: 返回结果数量限制
-            output_dir: 输出目录
-            output_format: 输出格式（json/csv/all）
+
+        Returns:
+            Ensembl ID，如果未找到则返回None
         """
+        url = f"{self.config.ensembl_api_url}{gene_name}"
+        params = {'content-type': 'application/json'}
+
         try:
-            gene_id = self.ot_api.get_ensembl_id(gene_name)
-            if not gene_id:
-                return
-
-            self.logger.log_info(f"开始查询基因 {gene_id} 关联的疾病", self.config.info_log_path)
-            data = self.ot_api.query_target_associations(gene_id, limit)
-            if not data:
-                return
-
-            if output_dir is None:
-                output_dir, _ = CommonUtils.get_output_dir("result", "opentargets", gene_id)
-            else:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            json_filename = Path(output_dir) / f"{gene_id}_associations_{limit}.json"
-            with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print(f"JSON结果已保存到: {json_filename}")
-
-            if output_format == 'csv' or output_format == 'all':
-                csv_filename = json_filename.with_suffix('.csv')
-                self._write_target_associations_csv(data, csv_filename)
-                print(f"CSV结果已保存到: {csv_filename}")
-
+            response = self._make_request('GET', url, params=params)
+            data = response.json()
+            target_id = data.get("id")
+            if not target_id:
+                error_msg = f"未找到基因 '{gene_name}' 的Ensembl ID"
+                self.logger.log_error(error_msg, self.config.error_log_path)
+                return None
+            return target_id
         except Exception as e:
-            error_msg = f"处理基因关联疾病查询失败: {str(e)}"
+            error_msg = f"获取Ensembl ID失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
+            return None
 
-    def process_target_drugs(
-        self,
-        gene_name: str,
-        output_dir: Optional[str] = None,
-        output_format: str = 'json'
-    ) -> None:
-        """查询靶点相关药物
+    def get_disease_efo_id(self, disease_name: str, interactive: bool = True) -> Optional[str]:
+        """根据疾病名称获取EFO ID
 
         Args:
-            gene_name: 基因名称
-            output_dir: 输出目录
-            output_format: 输出格式（json/csv/all）
+            disease_name: 疾病名称
+            interactive: 是否使用交互式选择（当有多个匹配结果时）
+
+        Returns:
+            疾病的EFO ID，如果未找到则返回None
         """
+        url = self.config.ols_url
+        params = {
+            "q": disease_name,
+            "ontology": "efo",
+            "exact": "true"
+        }
+
         try:
-            gene_id = self.ot_api.get_ensembl_id(gene_name)
-            if not gene_id:
-                return
+            response = self._make_request('GET', url, params=params)
+            data = response.json()
 
-            self.logger.log_info(f"开始查询靶点 {gene_id} 的相关药物", self.config.info_log_path)
-            data = self.ot_api.query_target_drugs(gene_id)
-            if not data:
-                return
+            if data["response"]["numFound"] == 0:
+                error_msg = f"未找到疾病 '{disease_name}' 的EFO ID"
+                self.logger.log_error(error_msg, self.config.error_log_path)
+                return None
 
-            if output_dir is None:
-                output_dir, _ = CommonUtils.get_output_dir("result", "opentargets", gene_id)
+            docs = data["response"]["docs"]
+            sorted_disease_hits = sorted(
+                docs,
+                key=lambda x: x["label"].lower().startswith(disease_name.lower()),
+                reverse=True
+            )
+
+            if len(sorted_disease_hits) == 1:
+                return sorted_disease_hits[0]["iri"].split("/")[-1]
             else:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            json_filename = Path(output_dir) / f"{gene_id}_drugs.json"
-            with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print(f"JSON结果已保存到: {json_filename}")
-
-            if output_format == 'csv' or output_format == 'all':
-                csv_filename = json_filename.with_suffix('.csv')
-                self._write_target_drugs_csv(data, csv_filename)
-                print(f"CSV结果已保存到: {csv_filename}")
-
+                if interactive:
+                    return self._select_disease_interactive(docs, disease_name)
+                else:
+                    self.logger.log_info(
+                        f"找到多个匹配的疾病: {disease_name}，使用第一个匹配",
+                        self.config.info_log_path
+                    )
+                    return sorted_disease_hits[0]["iri"].split("/")[-1]
         except Exception as e:
-            error_msg = f"处理靶点药物查询失败: {str(e)}"
+            error_msg = f"获取EFO ID失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
+            return None
 
-    def process_disease_associations(
-        self,
-        disease_name: Optional[str] = None,
-        disease_id: Optional[str] = None,
-        limit: int = 100,
-        output_dir: Optional[str] = None,
-        output_format: str = 'json'
-    ) -> None:
-        """查询疾病关联靶点
+    def _select_disease_interactive(self, docs: List[Dict[str, Any]], disease_name: str) -> Optional[str]:
+        """交互式选择疾病"""
+        print(f"\n找到 {len(docs)} 个匹配的疾病，请选择要查询的疾病：")
+        print("-" * 60)
+
+        for index, doc in enumerate(docs, start=1):
+            efo_id = doc["iri"].split("/")[-1]
+            label = doc.get('label', '未知')
+            description = doc.get('description', '无描述')
+            print(f"{index}. {label}")
+            print(f"   EFO ID: {efo_id}")
+            if description and description != '无描述':
+                print(f"   描述: {description[:100]}{'...' if len(description) > 100 else ''}")
+            print()
+
+        while True:
+            try:
+                choice = input(
+                    f"请输入要选择的序号 (1-{len(docs)})，或按 q 退出: "
+                ).strip()
+                if choice.lower() == 'q':
+                    self.logger.log_info("用户取消操作", self.config.info_log_path)
+                    return None
+
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(docs):
+                    selected_doc = docs[choice_num - 1]
+                    selected_id = selected_doc["iri"].split("/")[-1]
+                    selected_label = selected_doc.get('label', '未知')
+                    print(f"已选择: {selected_label} ({selected_id})")
+                    return selected_id
+                else:
+                    print(f"请输入 1-{len(docs)} 之间的数字")
+            except ValueError:
+                print("请输入有效的数字或 q 退出")
+
+    def send_graphql_request(self, query: str, variables: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """发送GraphQL请求
 
         Args:
-            disease_name: 疾病名称（与disease_id二选一）
-            disease_id: 疾病EFO ID（与disease_name二选一）
-            limit: 返回结果数量限制
-            output_dir: 输出目录
-            output_format: 输出格式（json/csv/all）
+            query: GraphQL查询语句
+            variables: 查询变量
+
+        Returns:
+            查询结果字典，如果失败则返回None
         """
+        url = self.config.opentargets_api_base_url
+        payload = {"query": query, "variables": variables}
+
         try:
-            if disease_id:
-                selected_disease_id = disease_id
-            elif disease_name:
-                selected_disease_id = self.ot_api.get_disease_efo_id(disease_name, interactive=True)
-                if not selected_disease_id:
-                    return
-            else:
-                self.logger.log_error("必须提供disease_name或disease_id参数", self.config.error_log_path)
-                return
-
-            self.logger.log_info(f"开始查询疾病 {selected_disease_id} 关联的靶点", self.config.info_log_path)
-            data = self.ot_api.query_disease_associations(selected_disease_id, limit)
-            if not data:
-                return
-
-            if output_dir is None:
-                output_dir, _ = CommonUtils.get_output_dir("result", "opentargets", selected_disease_id)
-            else:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            json_filename = Path(output_dir) / f"{selected_disease_id}_targets_{limit}.json"
-            with open(json_filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            print(f"JSON结果已保存到: {json_filename}")
-
-            if output_format == 'csv' or output_format == 'all':
-                csv_filename = json_filename.with_suffix('.csv')
-                self._write_disease_associations_csv(data, csv_filename)
-                print(f"CSV结果已保存到: {csv_filename}")
-
+            response = self._make_request('POST', url, json=payload)
+            return response.json()
         except Exception as e:
-            error_msg = f"处理疾病关联靶点查询失败: {str(e)}"
+            error_msg = f"GraphQL请求失败: {str(e)}"
             self.logger.log_error(error_msg, self.config.error_log_path)
+            return None
 
-    def _write_disease_drugs_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
-        """写入疾病药物信息的CSV格式"""
-        try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                headers = ["drug.id", "drug.name", "maxClinicalStage", "drugType", "tradeNames"]
-                writer = csv.writer(csvfile)
-                writer.writerow(headers)
+    def query_disease_drugs(self, disease_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
+        """查询特定疾病的药物信息
 
-                drugs = []
-                if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict):
-                    disease = data['data'].get('disease', {})
-                    if isinstance(disease, dict):
-                        drug_candidates = disease.get('drugAndClinicalCandidates', {})
-                        if isinstance(drug_candidates, dict):
-                            drugs = drug_candidates.get('rows', [])
+        Args:
+            disease_id: 疾病的EFO ID
+            limit: 返回结果数量限制
 
-                if not isinstance(drugs, list):
-                    drugs = []
+        Returns:
+            包含药物信息的字典，如果失败则返回None
+        """
+        query = """
+        query DiseaseDrugs($diseaseId: String!) {
+          disease(efoId: $diseaseId) {
+            id
+            name
+            drugAndClinicalCandidates {
+              count
+              rows {
+                id
+                maxClinicalStage
+                drug {
+                  id
+                  name
+                  maximumClinicalStage
+                  drugType
+                  tradeNames
+                }
+              }
+            }
+          }
+        }
+        """
 
-                for drug_info in drugs:
-                    if not isinstance(drug_info, dict):
-                        continue
-                    drug = drug_info.get('drug', {})
-                    if not isinstance(drug, dict):
-                        drug = {}
+        variables = {
+            "diseaseId": disease_id
+        }
+        return self.send_graphql_request(query, variables)
 
-                    trade_names = drug.get('tradeNames', [])
-                    trade_names_str = ', '.join(trade_names) if isinstance(trade_names, list) else ''
+    def query_target_drugs(self, gene_id: str) -> Optional[Dict[str, Any]]:
+        """查询特定靶点的相关药物
 
-                    writer.writerow([
-                        drug.get('id', ''),
-                        drug.get('name', ''),
-                        drug_info.get('maxClinicalStage', ''),
-                        drug.get('drugType', ''),
-                        trade_names_str
-                    ])
-        except Exception as e:
-            error_msg = f"写入疾病药物CSV失败: {str(e)}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
+        Args:
+            gene_id: 基因的Ensembl ID
 
-    def _write_target_drugs_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
-        """写入靶点药物信息的CSV格式"""
-        try:
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                headers = ["drug.id", "drug.name", "maxClinicalStage", "drugType", "tradeNames", "diseases"]
-                writer = csv.writer(csvfile)
-                writer.writerow(headers)
+        Returns:
+            包含药物信息的字典，如果失败则返回None
+        """
+        query = """
+        query TargetDrugs($id: String!) {
+          target(ensemblId: $id) {
+            id
+            approvedSymbol
+            drugAndClinicalCandidates {
+              count
+              rows {
+                id
+                maxClinicalStage
+                drug {
+                  id
+                  name
+                  maximumClinicalStage
+                  drugType
+                  tradeNames
+                }
+                diseases {
+                  diseaseFromSource
+                }
+              }
+            }
+          }
+        }
+        """
 
-                drugs = []
-                if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict):
-                    target = data['data'].get('target', {})
-                    if isinstance(target, dict):
-                        drug_candidates = target.get('drugAndClinicalCandidates', {})
-                        if isinstance(drug_candidates, dict):
-                            drugs = drug_candidates.get('rows', [])
+        variables = {
+            "id": gene_id
+        }
+        return self.send_graphql_request(query, variables)
 
-                if not isinstance(drugs, list):
-                    drugs = []
+    def query_target_associations(self, gene_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
+        """查询特定基因关联的疾病
 
-                for drug_info in drugs:
-                    if not isinstance(drug_info, dict):
-                        continue
-                    drug = drug_info.get('drug', {})
-                    if not isinstance(drug, dict):
-                        drug = {}
+        Args:
+            gene_id: 基因的Ensembl ID
+            limit: 返回结果数量限制
 
-                    trade_names = drug.get('tradeNames', [])
-                    trade_names_str = ', '.join(trade_names) if isinstance(trade_names, list) else ''
+        Returns:
+            包含疾病关联信息的字典，如果失败则返回None
+        """
+        query = """
+        query TargetAssociations($id: String!, $size: Int!) {
+          target(ensemblId: $id) {
+            id
+            approvedSymbol
+            associatedDiseases(
+              page: { index: 0, size: $size }
+              orderByScore: "score"
+              enableIndirect: false
+            ) {
+              count
+              rows {
+                disease { id name }
+                score
+                datasourceScores { componentId: id score }
+              }
+            }
+          }
+        }
+        """
 
-                    diseases = drug_info.get('diseases', [])
-                    if isinstance(diseases, list):
-                        disease_names = [d.get('diseaseFromSource', '') for d in diseases if isinstance(d, dict)]
-                        diseases_str = ', '.join(disease_names)
-                    else:
-                        diseases_str = ''
+        variables = {
+            "id": gene_id,
+            "size": limit
+        }
+        return self.send_graphql_request(query, variables)
 
-                    writer.writerow([
-                        drug.get('id', ''),
-                        drug.get('name', ''),
-                        drug_info.get('maxClinicalStage', ''),
-                        drug.get('drugType', ''),
-                        trade_names_str,
-                        diseases_str
-                    ])
-        except Exception as e:
-            error_msg = f"写入靶点药物CSV失败: {str(e)}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
+    def query_disease_associations(self, disease_id: str, limit: int = 100) -> Optional[Dict[str, Any]]:
+        """查询特定疾病关联的靶点
 
-    def _write_target_associations_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
-        """写入目标关联疾病CSV数据"""
-        try:
-            rows = []
-            if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict):
-                target = data['data'].get('target', {})
-                if isinstance(target, dict):
-                    associated_diseases = target.get('associatedDiseases', {})
-                    if isinstance(associated_diseases, dict):
-                        rows = associated_diseases.get('rows', [])
+        Args:
+            disease_id: 疾病的EFO ID
+            limit: 返回结果数量限制
 
-            if not isinstance(rows, list):
-                rows = []
+        Returns:
+            包含靶点关联信息的字典，如果失败则返回None
+        """
+        query = """
+        query DiseaseAssociations($id: String!, $size: Int!) {
+          disease(efoId: $id) {
+            id
+            name
+            associatedTargets(
+              page: { index: 0, size: $size }
+              orderByScore: "score"
+              enableIndirect: true
+            ) {
+              count
+              rows {
+                target {
+                  id
+                  approvedSymbol
+                  approvedName
+                }
+                score
+                datasourceScores { componentId: id score }
+              }
+            }
+          }
+        }
+        """
 
-            all_datasources = set()
-            for row in rows:
-                if isinstance(row, dict):
-                    scores = row.get('datasourceScores', [])
-                    if isinstance(scores, list):
-                        for score in scores:
-                            if isinstance(score, dict):
-                                all_datasources.add(score.get('componentId', ''))
-
-            datasource_columns = sorted(all_datasources)
-            headers = ["disease.id", "disease.name", "score"] + datasource_columns
-
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(headers)
-
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-
-                    disease = row.get('disease', {})
-                    if not isinstance(disease, dict):
-                        disease = {}
-
-                    scores = row.get('datasourceScores', [])
-                    if not isinstance(scores, list):
-                        scores = []
-
-                    score_map = {}
-                    for score in scores:
-                        if isinstance(score, dict):
-                            score_map[score.get('componentId', '')] = str(score.get('score', ''))
-
-                    row_data = [
-                        disease.get('id', ''),
-                        disease.get('name', ''),
-                        str(row.get('score', ''))
-                    ] + [score_map.get(ds, '') for ds in datasource_columns]
-
-                    writer.writerow(row_data)
-        except Exception as e:
-            error_msg = f"写入目标关联疾病CSV失败: {str(e)}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
-
-    def _write_disease_associations_csv(self, data: Dict[str, Any], csv_path: Path) -> None:
-        """写入疾病关联靶点CSV数据"""
-        try:
-            rows = []
-            if isinstance(data, dict) and 'data' in data and isinstance(data['data'], dict):
-                disease = data['data'].get('disease', {})
-                if isinstance(disease, dict):
-                    associated_targets = disease.get('associatedTargets', {})
-                    if isinstance(associated_targets, dict):
-                        rows = associated_targets.get('rows', [])
-
-            if not isinstance(rows, list):
-                rows = []
-
-            all_datasources = set()
-            for row in rows:
-                if isinstance(row, dict):
-                    scores = row.get('datasourceScores', [])
-                    if isinstance(scores, list):
-                        for score in scores:
-                            if isinstance(score, dict):
-                                all_datasources.add(score.get('componentId', ''))
-
-            datasource_columns = sorted(all_datasources)
-            headers = ["target.id", "target.approvedSymbol", "target.approvedName", "score"] + datasource_columns
-
-            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(headers)
-
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-
-                    target = row.get('target', {})
-                    if not isinstance(target, dict):
-                        target = {}
-
-                    scores = row.get('datasourceScores', [])
-                    if not isinstance(scores, list):
-                        scores = []
-
-                    score_map = {}
-                    for score in scores:
-                        if isinstance(score, dict):
-                            score_map[score.get('componentId', '')] = str(score.get('score', ''))
-
-                    row_data = [
-                        target.get('id', ''),
-                        target.get('approvedSymbol', ''),
-                        target.get('approvedName', ''),
-                        str(row.get('score', ''))
-                    ] + [score_map.get(ds, '') for ds in datasource_columns]
-
-                    writer.writerow(row_data)
-        except Exception as e:
-            error_msg = f"写入疾病关联靶点CSV失败: {str(e)}"
-            self.logger.log_error(error_msg, self.config.error_log_path)
+        variables = {
+            "id": disease_id,
+            "size": limit
+        }
+        return self.send_graphql_request(query, variables)
