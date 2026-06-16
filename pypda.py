@@ -285,6 +285,30 @@ class PypdaApp:
             help="输出格式：json（仅JSON）、csv（仅CSV）或all（JSON和CSV），默认json。"
         )
 
+        # opentargets target-drugs命令
+        target_drugs_parser = ot_subparsers.add_parser(
+            "target-drugs",
+            help="查询特定靶点的相关药物信息。",
+            description="""
+            根据基因名称，查询OpenTargets数据库中该靶点的相关药物信息，
+            包括药物名称、研发阶段、药物类型和适应症等。
+            """
+        )
+        target_drugs_parser.add_argument("gene_name", type=str, help="基因名称，例如: EGFR。")
+        target_drugs_parser.add_argument(
+            "--output-dir",
+            type=str,
+            default=None,
+            help="输出目录，用于保存查询结果 (默认: result/opentargets/EnsemblID_时间戳)。"
+        )
+        target_drugs_parser.add_argument(
+            "--format",
+            type=str,
+            default="json",
+            choices=["json", "csv", "all"],
+            help="输出格式：json（仅JSON）、csv（仅CSV）或all（JSON和CSV），默认json。"
+        )
+
         # opentargets target-associations命令
         target_associations_parser = ot_subparsers.add_parser(
             "target-associations",
@@ -465,6 +489,12 @@ class PypdaApp:
                         disease_name=args.disease_name,
                         disease_id=args.disease_id,
                         limit=args.limit,
+                        output_dir=args.output_dir,
+                        output_format=args.format
+                    )
+                elif args.command == "target-drugs":
+                    self.ot_processor.process_target_drugs(
+                        gene_name=args.gene_name,
                         output_dir=args.output_dir,
                         output_format=args.format
                     )
