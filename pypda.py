@@ -21,6 +21,7 @@ from uniprot.protein_analyzer import ProteinAnalyzer
 from report.report_generator import ReportGenerator
 from utils.common_utils import CommonUtils
 from opentargets.opentargets_processor import OpenTargetsProcessor
+from kegg.kegg_processor import KEGGProcessor
 
 
 class PypdaApp:
@@ -34,6 +35,7 @@ class PypdaApp:
         )
         self.pdb_processor: Optional[Any] = None  # 延迟实例化，只在执行pdb命令时实例化
         self.ot_processor: Optional[Any] = None  # 延迟实例化，只在执行opentargets命令时实例化
+        self.kegg_processor: Optional[Any] = None  # 延迟实例化，只在执行kegg命令时实例化
 
     def _get_uniprot_id_and_handle_error(
         self, protein_name: str, task_context: str
@@ -235,6 +237,64 @@ class PypdaApp:
             help="要分析的UniProt蛋白质信息JSON文件路径。"
         )
 
+    def _setup_kegg_parser(self, subparsers: argparse._SubParsersAction) -> None:
+        """设置KEGG数据处理工具的子命令解析器"""
+        kegg_parser = subparsers.add_parser(
+            "kegg",
+            help="KEGG数据处理工具，支持基因信号通路查询和信号通路图下载。",
+            formatter_class=argparse.RawTextHelpFormatter
+        )
+        kegg_subparsers = kegg_parser.add_subparsers(dest="command", required=True, help="KEGG数据命令")
+
+        # kegg gene-pathways命令
+        gene_pathways_parser = kegg_subparsers.add_parser(
+            "gene-pathways",
+            help="根据基因名称查询参与的信号通路并下载通路图。",
+            description="""
+            根据基因名称（如TP53、EGFR）查询该基因参与的所有KEGG信号通路，
+            获取信号通路ID和名称，并下载对应的信号通路图。
+            """
+        )
+        gene_pathways_parser.add_argument("gene_name", type=str, help="基因名称，例如: TP53。")
+        gene_pathways_parser.add_argument(
+            "--output-dir",
+            type=str,
+            default=None,
+            help="输出目录，用于保存信号通路列表和通路图 (默认: result/kegg_output/基因名_时间戳)。"
+        )
+
+        # kegg download-pathway命令
+        download_pathway_parser = kegg_subparsers.add_parser(
+            "download-pathway",
+            help="根据信号通路ID下载信号通路图。",
+            description="""
+            根据KEGG信号通路ID（如hsa04110）下载对应的信号通路图。
+            """
+        )
+        download_pathway_parser.add_argument("pathway_id", type=str, help="信号通路ID，例如: hsa04110。")
+        download_pathway_parser.add_argument(
+            "--output-dir",
+            type=str,
+            default=None,
+            help="输出目录，用于保存信号通路图 (默认: result/kegg_output/通路ID_时间戳)。"
+        )
+
+        # kegg search-pathway命令
+        search_pathway_parser = kegg_subparsers.add_parser(
+            "search-pathway",
+            help="根据名称搜索信号通路。",
+            description="""
+            根据信号通路名称搜索KEGG数据库中的信号通路，返回匹配的通路ID和名称。
+            """
+        )
+        search_pathway_parser.add_argument("pathway_name", type=str, help="信号通路名称，例如: cancer。")
+        search_pathway_parser.add_argument(
+            "--output-dir",
+            type=str,
+            default=None,
+            help="输出目录，用于保存搜索结果 (可选)。"
+        )
+
     def _setup_opentargets_parser(self, subparsers: argparse._SubParsersAction) -> None:
         """设置OpenTargets数据处理工具的子命令解析器"""
         ot_parser = subparsers.add_parser(
@@ -397,12 +457,13 @@ class PypdaApp:
         subparsers = parser.add_subparsers(
             dest="tool",
             required=True,
-            help="选择要使用的工具：序列处理 (seq), PDB文件处理 (pdb), UniProt数据分析 (uniprot), 或OpenTargets数据查询 (opentargets)。"
+            help="选择要使用的工具：序列处理 (seq), PDB文件处理 (pdb), UniProt数据分析 (uniprot), KEGG数据查询 (kegg), 或OpenTargets数据查询 (opentargets)。"
         )
 
         self._setup_seq_parser(subparsers)
         self._setup_pdb_parser(subparsers)
         self._setup_uniprot_parser(subparsers)
+        self._setup_kegg_parser(subparsers)
         self._setup_opentargets_parser(subparsers)
 
         return parser
@@ -480,6 +541,10 @@ class PypdaApp:
                     protein_info = analyzer.extract_protein_info(data)
                     md_filename = str(Path(args.file).with_suffix('.md'))
                     ReportGenerator.generate_md_report(protein_info, md_filename)
+            elif args.tool == "kegg":
+                if self.kegg_processor is None:
+                    self.kegg_processor = KEGGProcessor(self.config, self.logger, self.uniprot_api)
+                self.kegg_processor.process_command(args)
             elif args.tool == "opentargets":
                 if self.ot_processor is None:
                     self.ot_processor = OpenTargetsProcessor(self.config, self.logger)
