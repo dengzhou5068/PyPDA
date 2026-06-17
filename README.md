@@ -10,6 +10,7 @@ PyPDA是一个集成了蛋白质序列分析、PDB文件处理和UniProt数据�
 - **🧪 分子结构相似性**：基于SMILES计算小分子与PDB结构中配体的相似性，辅助分子对接
 - **📊 UniProt数据检索**：获取蛋白质详细注释信息并生成结构化报告
 - **🎯 OpenTargets数据查询**：查询疾病药物关联、靶点药物关联、基因疾病关联和疾病靶点关联信息
+- **🧬 KEGG信号通路分析**：查询基因参与的信号通路、下载通路图、搜索通路，支持JSON和CSV双格式输出
 - **🔍 增强的基因搜索功能**：实现从精确到宽松的递进式查询策略，支持灵活的基因名和蛋白质名匹配，提高检索成功率
 - **⚡ 并行计算支持**：采用多线程和多进程并行处理，显著提升大规模数据处理速度
 - **📁 统一管理**：所有结果文件和下载zip文件统一存储在`result/`目录下
@@ -242,11 +243,74 @@ python pypda.py opentargets disease-associations [--disease-name <疾病名称>]
 python pypda.py opentargets disease-associations --disease-name "breast cancer" --limit 50 --format csv
 ```
 
-#### 2.4 UniProt数据处理工具 (`uniprot`)
+#### 2.4 KEGG信号通路分析工具 (`kegg`)
+
+用于查询KEGG数据库，获取基因参与的信号通路信息并下载通路图。
+
+##### 2.4.1 查询基因参与的信号通路 (`gene-pathways`)
+
+查询特定基因参与的所有信号通路，并下载对应的通路图
+
+```bash
+python pypda.py kegg gene-pathways <gene_name> [output_dir]
+```
+
+- **参数**：
+  - `gene_name`: 基因名称（例如：TP53）
+  - `output_dir`: 输出目录，默认值为`result/kegg_output/基因名_YYYYMMDD_HHMMSS`
+
+**输出文件**：
+- `基因名_pathways.json`：信号通路列表（JSON格式）
+- `基因名_pathways.csv`：信号通路列表（CSV格式，Excel兼容）
+- `pathway_images/`：信号通路图目录（PNG格式）
+
+**示例**：
+
+```bash
+python pypda.py kegg gene-pathways TP53
+```
+
+##### 2.4.2 下载信号通路图 (`download-pathway`)
+
+根据信号通路ID下载通路图
+
+```bash
+python pypda.py kegg download-pathway <pathway_id> [output_dir]
+```
+
+- **参数**：
+  - `pathway_id`: 信号通路ID（例如：hsa04110）
+  - `output_dir`: 输出目录，默认值为`result/kegg_output/通路ID_YYYYMMDD_HHMMSS`
+
+**示例**：
+
+```bash
+python pypda.py kegg download-pathway hsa04110
+```
+
+##### 2.4.3 搜索信号通路 (`search-pathway`)
+
+根据名称搜索信号通路
+
+```bash
+python pypda.py kegg search-pathway <pathway_name> [output_dir]
+```
+
+- **参数**：
+  - `pathway_name`: 信号通路名称关键词（例如：cancer）
+  - `output_dir`: 输出目录（可选）
+
+**示例**：
+
+```bash
+python pypda.py kegg search-pathway cancer
+```
+
+#### 2.5 UniProt数据处理工具 (`uniprot`)
 
 用于从UniProt数据库获取蛋白质注释信息并生成分析报告。
 
-##### 2.4.1 获取UniProt数据并生成报告 (`fetch`)
+##### 2.5.1 获取UniProt数据并生成报告 (`fetch`)
 
 从UniProt API获取蛋白质数据并生成JSON和Markdown报告
 
@@ -264,7 +328,7 @@ python pypda.py uniprot fetch <accession> [output_dir]
 python pypda.py uniprot fetch TP53
 ```
 
-##### 2.4.2 分析现有UniProt数据文件 (`analyze`)
+##### 2.5.2 分析现有UniProt数据文件 (`analyze`)
 
 分析本地已有的UniProt蛋白质信息JSON文件，提取关键数据并生成Markdown格式的分析报告。
 
@@ -331,6 +395,10 @@ pypda/
 │   ├── __init__.py
 │   ├── opentargets_api.py  # OpenTargets API交互
 │   └── opentargets_processor.py # OpenTargets命令处理
+├── kegg/                   # KEGG信号通路分析模块
+│   ├── __init__.py
+│   ├── kegg_api.py         # KEGG API交互
+│   └── kegg_processor.py   # KEGG命令处理
 ├── pdb/                    # PDB处理模块
 │   ├── __init__.py
 │   └── pdb_processor.py    # PDB文件处理功能
@@ -359,14 +427,10 @@ pypda/
 
 ## 🔧 开发信息
 
-- **主要文件**：
-  - `pypda.py`：主应用入口和命令行工具入口（原 main.py 已合并至此）
-  - `config/config_manager.py`：配置管理
-  - `uniprot/uniprot_api.py`：UniProt API交互
-  - `sequence/sequence_processor.py`：序列分析功能
-  - `pdb/pdb_processor.py`：PDB文件处理
 - **主要更新**：
   - **版本 0.6.0**：
+    - 新增KEGG信号通路分析功能，支持查询基因参与的信号通路、下载通路图、搜索通路
+    - KEGG模块支持JSON和CSV双格式输出，方便数据处理和分析
     - 新增OpenTargets数据查询功能，支持疾病药物查询、靶点药物查询、基因关联疾病查询和疾病关联靶点查询
     - 修复OpenTargets API查询字段问题，将`knownDrugs`更新为`drugAndClinicalCandidates`
     - 增强种属信息提取功能，支持从多个来源提取种属信息
