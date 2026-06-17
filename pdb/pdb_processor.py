@@ -7,13 +7,16 @@ import configparser
 import json
 import shutil
 import sys
-from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Set, Any, Union, Tuple
 
-from Bio.PDB.PDBList import PDBList
 from tqdm import tqdm
-import pypdb
+
+try:
+    from rcsbsearch import TextQuery
+    from rcsbsearch import rcsb_api
+except ImportError:
+    pass
 
 from config.config_manager import ConfigManager
 from logger.logger import Logger
@@ -267,19 +270,18 @@ def _process_single_pocket_file(args: Tuple[Path, List[str]]) -> List[Tuple[str,
 
 class PDBProcessor:
     """PDB处理类，负责PDB文件相关操作"""
-    def __init__(self, config: ConfigManager, logger: Logger, uniprot_api: Any):
+    def __init__(self, config: ConfigManager, logger: Logger):
         """初始化PDBProcessor实例
         
         Args:
             config: 配置管理器实例
             logger: 日志记录器实例
-            uniprot_api: UniProtAPI实例，用于访问UniProt数据
         """
         self.config = config
         self.logger = logger
-        self.uniprot_api = uniprot_api
         self.exclude_residues = self.parse_exclude_residues()
         self.rdkit_available = 'rdkit' in sys.modules
+        self.rcsb_available = 'rcsbsearch' in sys.modules
 
     def parse_exclude_residues(self) -> List[str]:
         """解析排除残基的配置文件 `exclude_residues.ini`
@@ -309,55 +311,34 @@ class PDBProcessor:
                 exclude_residues.extend([res.strip().upper() for res in config[section][key].split(',') if res.strip()])
         return list(set(exclude_residues))
 
-    @lru_cache(maxsize=None)
-    def get_pdb_ids_from_uniprot(self, uniprot_id: str) -> List[str]:
-        """通过UniProt ID获取对应的PDB ID列表（带缓存优化）
-        使用 UniProt REST API 获取交叉引用信息。
+    def get_pdb_ids_from_protein_name(self, protein_name: str) -> List[str]:
+        """使用RCSB API通过蛋白质名称搜索PDB ID列表
 
         Args:
-            uniprot_id: UniProt ID
+            protein_name: 蛋白质名称或基因名称
 
         Returns:
             PDB ID列表
         """
-        try:
-            data = self.uniprot_api.get_uniprot_data(uniprot_id)
-            if not data:
-                self.logger.log_error(f"无法从UniProt API获取UniProt ID {uniprot_id} 的数据。", self.config.error_log_path)
-                return []
-            
-            pdb_ids = []
-            cross_references = data.get('uniProtKBCrossReferences', [])
-            for xref in cross_references:
-                if xref.get('database') == 'PDB':
-                    pdb_ids.append(xref.get('id'))
-            return list(set(pdb_ids))
-        except Exception as e:
-            self.logger.log_error(f"获取UniProt ID {uniprot_id} 的PDB ID时出错: {e}", self.config.error_log_path)
+        if not self.rcsb_available:
+            self.logger.log_error("rcsb-api 未安装，无法使用RCSB API搜索。", self.config.error_log_path)
             return []
 
-    def get_pdb_ids_from_query(self, query: str, max_results: int = 5) -> List[str]:
-        """通过查询字符串搜索PDB ID列表
-        使用 pypdb 库搜索 PDB 数据库。
-
-        Args:
-            query: 搜索查询字符串
-            max_results: 最大返回结果数量，默认 5 个
-
-        Returns:
-            PDB ID列表
-        """
         try:
-            # 使用 pypdb 搜索 PDB ID
-            pdb_ids = pypdb.Query(query).search()
-            if pdb_ids:
-                unique_ids = list(set(pdb_ids))
-                return unique_ids[:max_results]
-            else:
-                self.logger.log_error(f"未找到与查询 '{query}' 匹配的PDB ID。", self.config.error_log_path)
-                return []
+            query = TextQuery(protein_name, field="entity_poly.pdbx_description")
+            results = list(query())
+            if results:
+                return list(set(results))
+            
+            query = TextQuery(protein_name, field="struct.title")
+            results = list(query())
+            if results:
+                return list(set(results))
+            
+            self.logger.log_error(f"未找到与蛋白质 '{protein_name}' 匹配的PDB ID。", self.config.error_log_path)
+            return []
         except Exception as e:
-            self.logger.log_error(f"通过查询 '{query}' 搜索PDB ID时出错: {e}", self.config.error_log_path)
+            self.logger.log_error(f"通过蛋白质名称 '{protein_name}' 搜索PDB ID时出错: {e}", self.config.error_log_path)
             return []
 
     def download_pdb_files(self, pdb_ids: List[str], output_dir: str) -> None:
@@ -369,16 +350,15 @@ class PDBProcessor:
         """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
-        pdbl = PDBList()
         failed_files: List[str] = []
 
         def download_single_file(pdb_id: str) -> None:
             try:
-                local_path = pdbl.retrieve_pdb_file(pdb_id, pdir=str(output_dir_path), file_format='mmCif')
-                if local_path and Path(local_path).exists():
-                    pass
-                else:
-                    self.logger.log_error(f"下载CIF文件 {pdb_id} 失败，未返回有效路径或文件不存在。", self.config.error_log_path)
+                pdb_id_upper = pdb_id.upper()
+                file_path = output_dir_path / f"{pdb_id_upper}.cif"
+                rcsb_api.download_pdb(pdb_id_upper, str(file_path), file_format='mmCif')
+                if not file_path.exists():
+                    self.logger.log_error(f"下载CIF文件 {pdb_id} 失败，文件不存在。", self.config.error_log_path)
                     failed_files.append(pdb_id)
             except Exception as e:
                 error_msg = f"下载CIF文件 {pdb_id} 时出错: {e}"
@@ -829,45 +809,35 @@ class PDBProcessor:
 
     def process(
         self,
-        query: str = None,
-        uniprot_id: str = None,
+        protein_name: str = None,
         output_dir: str = None,
         user_smiles: str = None
     ) -> None:
         """处理PDB文件下载和分析
 
         Args:
-            query: 搜索查询字符串（优先使用）
-            uniprot_id: UniProt蛋白质编号（备选）
+            protein_name: 蛋白质名称或基因名称（通过RCSB API搜索获取对应的PDB ID）
             output_dir: 输出目录路径
             user_smiles: 可选，用户输入的小分子SMILES字符串，用于计算结构相似性
         """
         output_dir_path = Path(output_dir)
         output_dir_path.mkdir(parents=True, exist_ok=True)
 
-        if not query and not uniprot_id:
-            self.logger.log_error("缺少查询字符串或 'uniprot' ID。", self.config.error_log_path)
+        if not protein_name:
+            self.logger.log_error("缺少蛋白质名称。", self.config.error_log_path)
             return
         
-        pdb_ids = []
-        if query:
-            print(f"\n--- 开始处理 PDB 任务 (查询: {query}) ---")
-            pdb_ids = self.get_pdb_ids_from_query(query)
-            if pdb_ids:
-                print(f"为查询 '{query}' 找到 PDB IDs: {', '.join(pdb_ids)}")
-                self.download_pdb_files(pdb_ids, output_dir)
-            else:
-                self.logger.log_error(f"未找到与查询 '{query}' 匹配的PDB ID。", self.config.error_log_path)
-                return
+        print(f"\n--- 开始处理 PDB 任务 (蛋白质: {protein_name}) ---")
+        
+        print("使用 RCSB API 搜索 PDB 结构...")
+        pdb_ids = self.get_pdb_ids_from_protein_name(protein_name)
+        
+        if pdb_ids:
+            print(f"为蛋白质 '{protein_name}' 找到 PDB IDs: {', '.join(pdb_ids)}")
+            self.download_pdb_files(pdb_ids, output_dir)
         else:
-            print(f"\n--- 开始处理 PDB 任务 (UniProt ID: {uniprot_id}) ---")
-            pdb_ids = self.get_pdb_ids_from_uniprot(uniprot_id)
-            if pdb_ids:
-                print(f"为 UniProt ID {uniprot_id} 找到 PDB IDs: {', '.join(pdb_ids)}")
-                self.download_pdb_files(pdb_ids, output_dir)
-            else:
-                self.logger.log_error(f"未找到 UniProt ID {uniprot_id} 对应的PDB ID。", self.config.error_log_path)
-                return
+            self.logger.log_error(f"未找到蛋白质 '{protein_name}' 对应的PDB ID。", self.config.error_log_path)
+            return
 
         downloaded_cif_files = list(Path(output_dir).glob('*.cif'))
         if not downloaded_cif_files:
