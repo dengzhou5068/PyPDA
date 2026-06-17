@@ -13,8 +13,9 @@ from typing import List, Dict, Set, Any, Union, Tuple
 from tqdm import tqdm
 
 try:
-    from rcsbsearch import TextQuery
-    from rcsbsearch import rcsb_api
+    from rcsbapi.search import TextQuery, AttributeQuery
+    from rcsbapi.search import search_attributes as attrs
+    from rcsbapi.model import ModelQuery
 except ImportError:
     pass
 
@@ -281,7 +282,7 @@ class PDBProcessor:
         self.logger = logger
         self.exclude_residues = self.parse_exclude_residues()
         self.rdkit_available = 'rdkit' in sys.modules
-        self.rcsb_available = 'rcsbsearch' in sys.modules
+        self.rcsb_available = 'rcsbapi' in sys.modules
 
     def parse_exclude_residues(self) -> List[str]:
         """解析排除残基的配置文件 `exclude_residues.ini`
@@ -312,10 +313,10 @@ class PDBProcessor:
         return list(set(exclude_residues))
 
     def get_pdb_ids_from_protein_name(self, protein_name: str) -> List[str]:
-        """使用RCSB API通过蛋白质名称搜索PDB ID列表
+        """使用RCSB API通过基因名称搜索PDB ID列表
 
         Args:
-            protein_name: 蛋白质名称或基因名称
+            protein_name: 基因名称（例如：NLRP3, BRCA1, TP53）
 
         Returns:
             PDB ID列表
@@ -325,20 +326,17 @@ class PDBProcessor:
             return []
 
         try:
-            query = TextQuery(protein_name, field="entity_poly.pdbx_description")
+            # 使用rcsb_gene_name字段精确搜索基因名称
+            from rcsbapi.search import search_attributes as attrs
+            query = attrs.rcsb_entity_source_organism.rcsb_gene_name.value == protein_name
             results = list(query())
             if results:
                 return list(set(results))
             
-            query = TextQuery(protein_name, field="struct.title")
-            results = list(query())
-            if results:
-                return list(set(results))
-            
-            self.logger.log_error(f"未找到与蛋白质 '{protein_name}' 匹配的PDB ID。", self.config.error_log_path)
+            self.logger.log_error(f"未找到与基因名称 '{protein_name}' 匹配的PDB ID。", self.config.error_log_path)
             return []
         except Exception as e:
-            self.logger.log_error(f"通过蛋白质名称 '{protein_name}' 搜索PDB ID时出错: {e}", self.config.error_log_path)
+            self.logger.log_error(f"通过基因名称 '{protein_name}' 搜索PDB ID时出错: {e}", self.config.error_log_path)
             return []
 
     def download_pdb_files(self, pdb_ids: List[str], output_dir: str) -> None:
@@ -352,12 +350,23 @@ class PDBProcessor:
         output_dir_path.mkdir(parents=True, exist_ok=True)
         failed_files: List[str] = []
 
+        # 创建ModelQuery实例用于下载
+        model_query = ModelQuery()
+
         def download_single_file(pdb_id: str) -> None:
             try:
-                pdb_id_upper = pdb_id.upper()
-                file_path = output_dir_path / f"{pdb_id_upper}.cif"
-                rcsb_api.download_pdb(pdb_id_upper, str(file_path), file_format='mmCif')
-                if not file_path.exists():
+                pdb_id_lower = pdb_id.lower()
+                # 使用RCSB Model API下载文件
+                output_path = model_query.get_full_structure(
+                    entry_id=pdb_id_lower,
+                    encoding="cif",
+                    download=True,
+                    file_directory=str(output_dir_path)
+                )
+                # ModelQuery会返回下载的文件路径，检查文件是否存在
+                if output_path and Path(output_path).exists():
+                    pass  # 下载成功
+                else:
                     self.logger.log_error(f"下载CIF文件 {pdb_id} 失败，文件不存在。", self.config.error_log_path)
                     failed_files.append(pdb_id)
             except Exception as e:
@@ -559,14 +568,15 @@ class PDBProcessor:
             unique_ligands: 唯一配体集合
             output_dir: 输出目录
         """
+        import requests
+        
         json_dir = Path(output_dir) / 'json'
         json_dir.mkdir(exist_ok=True)
 
         def download_single_ligand_json(ligand: str) -> None:
-            session = self.uniprot_api.session
             try:
                 url = f"https://data.rcsb.org/rest/v1/core/chemcomp/{ligand}"
-                response = session.get(url, timeout=10)
+                response = requests.get(url, timeout=10)
                 response.raise_for_status()
                 
                 data = response.json()
