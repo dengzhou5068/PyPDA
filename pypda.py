@@ -159,18 +159,19 @@ class PypdaApp:
             "fetch",
             help="PDB文件下载、配体提取和分类管理，以及基于小分子SMILES的结构相似性计算。",
             description="""
-            根据提供的查询字符串，直接搜索PDB数据库并下载相关PDB文件 (mmCIF格式)，
-            提取蛋白质中的配体信息，生成报告，并根据是否含有配体将PDB文件分类。
+            根据蛋白质名称或基因名称，通过UniProt搜索获取对应的PDB ID，
+            下载相关PDB文件 (mmCIF格式)，提取蛋白质中的配体信息，生成报告，
+            并根据是否含有配体将PDB文件分类。
             同时，下载配体化学信息并提取配体坐标。
             使用--smiles参数可根据输入的小分子SMILES计算结构相似性并排序PDB结构。
             """
         )
-        fetch_parser.add_argument("query", type=str, help="PDB数据库搜索查询字符串，例如: BRCA1, kinase, etc.")
+        fetch_parser.add_argument("protein_name", type=str, help="蛋白质名称或基因名称，例如: BRCA1, TP53, EGFR。")
         fetch_parser.add_argument(
             "--output_dir",
             type=str,
             default=None,
-            help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/查询词_YYYYMMDD_HHMMSS)。")
+            help="输出目录，用于保存PDB文件和分析结果 (默认: result/pdb_output/蛋白质名_YYYYMMDD_HHMMSS)。")
         fetch_parser.add_argument(
             "--smiles",
             type=str,
@@ -481,20 +482,20 @@ class PypdaApp:
                 if self.pdb_processor is None:
                     from pdb.pdb_processor import PDBProcessor
                     self.pdb_processor = PDBProcessor(
-                        self.config, self.logger, self.uniprot_api
+                        self.config, self.logger
                     )
 
                 if args.command == "fetch":
                     # 设置基于result/的存储路径
                     if args.output_dir is None:
                         output_dir, _ = CommonUtils.get_output_dir(
-                            "result", "pdb_output", args.query
+                            "result", "pdb_output", args.protein_name
                         )
                     else:
                         output_dir = args.output_dir
 
                     self.pdb_processor.process(
-                        query=args.query,
+                        protein_name=args.protein_name,
                         output_dir=output_dir,
                         user_smiles=args.smiles
                     )
