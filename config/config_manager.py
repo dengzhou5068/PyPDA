@@ -21,3 +21,4 @@ class ConfigManager:
         self.opentargets_api_base_url: str = 'https://api.platform.opentargets.org/api/v4/graphql'
         self.ensembl_api_url: str = 'https://rest.ensembl.org/lookup/symbol/homo_sapiens/'
         self.ols_url: str = 'https://www.ebi.ac.uk/ols/api/search'
+        self.kegg_api_base_url: str = 'https://rest.kegg.jp/'
