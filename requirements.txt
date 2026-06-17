@@ -24,4 +24,4 @@ pytest>=7.3.1      # 单元测试支持
 rdkit>=2023.03.01  # 分子结构处理和相似性计算
 
 # PDB数据库查询
-pypdb>=2.0.0  # PDB数据库查询工具
+rcsb-api>=1.0.0  # RCSB PDB官方API工具
