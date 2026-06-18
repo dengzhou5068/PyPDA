@@ -16,6 +16,7 @@ try:
     from rcsbapi.search import TextQuery, AttributeQuery
     from rcsbapi.search import search_attributes as attrs
     from rcsbapi.model import ModelQuery
+    from rcsbapi.data import DataQuery
 except ImportError:
     pass
 
@@ -66,126 +67,6 @@ def _process_single_cif_file(args: Tuple[Path, List[str]]) -> Tuple[str, List[st
         # 注意：在进程池中无法直接访问logger，这里使用简单的print
         print(error_msg)
         return pdb_id, []
-
-
-def _process_single_structure_file(file_path: Path) -> Dict[str, Any]:
-    """处理单个结构文件，提取结构信息
-
-    Args:
-        file_path: 文件路径
-
-    Returns:
-        结构信息字典
-    """
-    pdb_id = file_path.stem
-    structure_info: Dict[str, Any] = {
-        'pdb_id': pdb_id,
-        'title': '',
-        'method': '',
-        'resolution_low': '',
-        'resolution_high': '',
-        'species': ''
-    }
-    
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # 提取PDB ID
-        import re
-        
-        # 提取结构标题
-        title_match = re.search(r'_struct.title\s+([^\n]+)', content)
-        if title_match:
-            title = title_match.group(1).strip().strip("'\"")
-            structure_info['title'] = title
-        
-        # 提取实验方法
-        method_match = re.search(r'_exptl.method\s+([^\n]+)', content)
-        if method_match:
-            method = method_match.group(1).strip().strip("'\"")
-            structure_info['method'] = method
-        
-        # 提取分辨率范围 - 优先使用refine中的值，其次使用reflns中的值
-        refine_res_low_match = re.search(r'_refine.ls_d_res_low\s+([^\n]+)', content)
-        refine_res_high_match = re.search(r'_refine.ls_d_res_high\s+([^\n]+)', content)
-        if refine_res_low_match and refine_res_high_match:
-            structure_info['resolution_low'] = refine_res_low_match.group(1).strip()
-            structure_info['resolution_high'] = refine_res_high_match.group(1).strip()
-        else:
-            reflns_res_low_match = re.search(r'_reflns.d_resolution_low\s+([^\n]+)', content)
-            reflns_res_high_match = re.search(r'_reflns.d_resolution_high\s+([^\n]+)', content)
-            if reflns_res_low_match and reflns_res_high_match:
-                structure_info['resolution_low'] = reflns_res_low_match.group(1).strip()
-                structure_info['resolution_high'] = reflns_res_high_match.group(1).strip()
-        
-        # 提取种属信息
-        import re
-        
-        # 1. 首先尝试从_entity_src_nat.pdbx_organism_scientific非loop结构中提取
-        species_pattern = r'_entity_src_nat\.pdbx_organism_scientific\s+([\'"])([^\'"]+)\1'
-        species_match = re.search(species_pattern, content, re.IGNORECASE)
-        if species_match:
-            structure_info['species'] = species_match.group(2)
-
-        # 2. 如果没有找到，尝试从_entity_src_gen.pdbx_gene_src_scientific_name非loop结构中提取
-        if not structure_info.get('species'):
-            species_pattern = r'_entity_src_gen\.pdbx_gene_src_scientific_name\s+([\'"])([^\'"]+)\1'
-            species_match = re.search(species_pattern, content, re.IGNORECASE)
-            if species_match:
-                structure_info['species'] = species_match.group(2)
-
-        # 3. 如果没有找到，尝试从_pdbx_entity_src_syn.organism_scientific中提取（包括loop结构）
-        if not structure_info.get('species'):
-            # 尝试匹配非loop结构
-            species_pattern = r'_pdbx_entity_src_syn\.organism_scientific[\s\n]+([\'"])([^\'"]+)\1'
-            species_match = re.search(species_pattern, content, re.IGNORECASE)
-            if species_match:
-                structure_info['species'] = species_match.group(2)
-            else:
-                # 尝试匹配loop结构
-                loop_pattern = (
-                    r'loop_[\s\S]*?_pdbx_entity_src_syn\.organism_scientific'
-                    r'[\s\S]*?\n([\s\S]*?)#'
-                )
-                entity_src_syn_match = re.search(loop_pattern, content, re.IGNORECASE)
-                if entity_src_syn_match:
-                    table_content = entity_src_syn_match.group(1)
-                    # 在loop内容中查找物种名称
-                    species_match = re.search(r'\'([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\'', table_content)
-                    if species_match:
-                        structure_info['species'] = species_match.group(1)
-
-        # 4. 如果仍然没有找到，尝试从_entity_src_gen loop结构中提取
-        if not structure_info.get('species'):
-            loop_pattern = r'loop_[\s\S]*?_entity_src_gen\.[\s\S]*?\n([\s\S]*?)#'
-            entity_src_gen_match = re.search(loop_pattern, content, re.IGNORECASE)
-            if entity_src_gen_match:
-                table_content = entity_src_gen_match.group(1)
-                # 检查是否包含Homo sapiens、9606或human
-                if re.search(r'(Homo\s+sapiens|9606|human)', table_content, re.IGNORECASE):
-                    structure_info['species'] = 'Homo sapiens'
-                else:
-                    # 尝试从_entity_src_gen.pdbx_gene_src_scientific_name字段提取
-                    scientific_name_match = re.search(r'\'([A-Za-z][a-z]+\s+[A-Za-z][a-z]+)\'', table_content)
-                    if scientific_name_match:
-                        structure_info['species'] = scientific_name_match.group(1)
-                    # 尝试从_struct_ref.db_code字段提取（如CDK6_HUMAN）
-                    if not structure_info.get('species'):
-                        struct_ref_pattern = r'_struct_ref\.db_code\s+([A-Za-z0-9_]+)'
-                        struct_ref_match = re.search(struct_ref_pattern, content, re.IGNORECASE)
-                        if struct_ref_match:
-                            db_code = struct_ref_match.group(1)
-                            # 检查是否包含_HUMAN后缀
-                            if '_HUMAN' in db_code:
-                                structure_info['species'] = 'Homo sapiens'
-        
-        return structure_info
-    except Exception as e:
-        error_msg = f"解析 {file_path.name} 时出错: {e}"
-        # 注意：在进程池中无法直接访问logger，这里使用简单的print
-        print(error_msg)
-        return structure_info
 
 
 def _process_single_pocket_file(args: Tuple[Path, List[str]]) -> List[Tuple[str, str, str]]:
@@ -482,85 +363,6 @@ class PDBProcessor:
             except Exception as e:
                 self.logger.log_error(f"移动文件 {src_path.name} 到 {target_dir_name} 时出错: {e}", self.config.error_log_path)
 
-    def move_files_based_on_species(self, folder_path: Union[str, Path]) -> None:
-        """根据种属信息对CIF文件进行分类
-
-        Args:
-            folder_path: 包含CIF文件的文件夹路径
-        """
-        folder_path = Path(folder_path)
-        
-        # 检查 no_ligand 和 with_ligand 文件夹
-        no_ligand_dir = folder_path / 'no_ligand'
-        with_ligands_dir = folder_path / 'with_ligand'
-        
-        # 搜索所有CIF文件
-        cif_files = []
-        if no_ligand_dir.exists():
-            cif_files.extend(list(no_ligand_dir.glob('*.cif')))
-        if with_ligands_dir.exists():
-            cif_files.extend(list(with_ligands_dir.glob('*.cif')))
-        
-        if not cif_files:
-            self.logger.log_error(f"在 {folder_path} 中未找到任何.cif文件进行种属分类。", self.config.error_log_path)
-            return
-        
-        # 提取种属信息
-        structure_info_list = self.extract_structure_info(folder_path)
-        species_pdb_dict = {}
-        for info in structure_info_list:
-            species = info.get('species', 'Unknown')
-            pdb_id = info.get('pdb_id')
-            if pdb_id:
-                species_pdb_dict.setdefault(species, []).append(pdb_id)
-        
-        # 为每个种属创建文件夹并移动文件
-        for species, pdb_ids in species_pdb_dict.items():
-            # 清理种属名称，去除特殊字符
-            safe_species_name = (
-                species.replace(' ', '_').replace('/', '_').replace('\\', '_')
-                .replace(':', '_').replace('*', '_').replace('?', '_')
-                .replace('"', '_').replace('<', '_').replace('>', '_')
-                .replace('|', '_')
-            )
-            
-            # 跳过空种属名称
-            if not species:
-                continue
-                
-            for pdb_id in pdb_ids:
-                # 查找文件位置
-                for cif_file in cif_files:
-                    if cif_file.stem == pdb_id:
-                        src_path = cif_file
-                        # 确定目标目录
-                        if src_path.parent == no_ligand_dir:
-                            if no_ligand_dir.exists():
-                                species_dir = no_ligand_dir / f'species_{safe_species_name}'
-                                # 只在需要时创建文件夹
-                                species_dir.mkdir(exist_ok=True)
-                                dst_path = species_dir / src_path.name
-                        elif src_path.parent == with_ligands_dir:
-                            if with_ligands_dir.exists():
-                                species_dir = with_ligands_dir / f'species_{safe_species_name}'
-                                # 只在需要时创建文件夹
-                                species_dir.mkdir(exist_ok=True)
-                                dst_path = species_dir / src_path.name
-                        else:
-                            continue
-                        
-                        try:
-                            if src_path != dst_path:
-                                shutil.move(src_path, dst_path)
-                        except Exception as e:
-                            log_msg = (
-                                f"移动文件 {src_path.name} 到 {species_dir.name} 时出错: {e}"
-                            )
-                            self.logger.log_error(log_msg, self.config.error_log_path)
-                        break
-        
-        print(f"已根据种属对 {len(cif_files)} 个CIF文件进行分类")
-
     def download_ligand_json(self, unique_ligands: Set[str], output_dir: Union[str, Path]) -> None:
         """通过API并行查询配体的JSON文件并下载保存到json子文件夹
 
@@ -596,19 +398,22 @@ class PDBProcessor:
         )
 
     def write_chemical_info_to_md(self, unique_ligands: Set[str], output_dir: Union[str, Path]) -> None:
-        """从json子文件夹中读取JSON文件并写入chemical_components_info.md
+        """从json子文件夹中读取JSON文件并写入chemical_components_info.csv
 
         Args:
             unique_ligands: 唯一配体集合
             output_dir: 输出目录
         """
+        import csv
+        
         json_dir = Path(output_dir) / 'json'
-        output_md_file = Path(output_dir) / 'chemical_components_info.md'
+        output_csv_file = Path(output_dir) / 'chemical_components_info.csv'
         
         try:
-            with open(output_md_file, 'w', encoding='utf-8') as md_file:
-                md_file.write("| Chemical Component ID | name | formula | formula_weight | Canonical Smiles |\n")
-                md_file.write("| --- | --- | --- | --- | --- |\n")
+            with open(output_csv_file, 'w', encoding='utf-8-sig', newline='') as csv_file:
+                writer = csv.writer(csv_file)
+                writer.writerow(['Chemical Component ID', 'name', 'formula', 'formula_weight', 'Canonical Smiles'])
+                
                 for ligand in tqdm(sorted(list(unique_ligands)), desc="Writing chemical info"):
                     json_path = json_dir / f'{ligand}.json'
                     try:
@@ -623,95 +428,18 @@ class PDBProcessor:
                             if descriptor.get('type') == 'SMILES_CANONICAL':
                                 canonical_smiles = descriptor.get('descriptor', '')
                                 break
-                        md_file.write(f"| {ligand} | {name} | {formula} | {formula_weight} | {canonical_smiles} |\n")
+                        writer.writerow([ligand, name, formula, formula_weight, canonical_smiles])
                     except FileNotFoundError:
                         log_msg = f"JSON file for {ligand} not found in {json_dir}"
                         self.logger.log_error(log_msg, self.config.error_log_path)
                     except Exception as e:
                         log_msg = f"读取或解析配体 {ligand} 的JSON文件失败: {e}"
                         self.logger.log_error(log_msg, self.config.error_log_path)
-            print(f"MD file {output_md_file} has been created successfully.")
+            print(f"CSV file {output_csv_file} has been created successfully.")
         except IOError as e:
-            self.logger.log_error(f"创建或写入 chemical_components_info.md 文件失败: {e}", self.config.error_log_path)
+            self.logger.log_error(f"创建或写入 chemical_components_info.csv 文件失败: {e}", self.config.error_log_path)
             raise
     
-    def extract_structure_info(self, folder_path: Union[str, Path]) -> List[Dict[str, Any]]:
-        """从.cif文件中提取结构信息
-
-        Args:
-            folder_path: 包含CIF文件的文件夹路径
-
-        Returns:
-            结构信息列表，每个元素包含PDB ID、结构标题、实验方法、分辨率范围
-        """
-        structure_info_list = []
-        folder_path = Path(folder_path)
-        
-        # 搜索所有子文件夹中的CIF文件
-        cif_files = list(folder_path.rglob('*.cif'))
-        if not cif_files:
-            log_msg = f"在 {folder_path} 中未找到任何.cif文件进行结构信息提取。"
-            self.logger.log_error(log_msg, self.config.error_log_path)
-            return structure_info_list
-        
-        # 并行处理所有文件
-        from concurrent.futures import ProcessPoolExecutor
-        with ProcessPoolExecutor() as executor:
-            results = list(executor.map(_process_single_structure_file, cif_files))
-
-        # 合并结果
-        structure_info_list.extend(results)
-        
-        return structure_info_list
-    
-    def write_structure_info_to_md(
-        self,
-        structure_info_list: List[Dict[str, Any]],
-        output_dir: Union[str, Path]
-    ) -> None:
-        """将结构信息写入structure_info.md文件
-
-        Args:
-            structure_info_list: 结构信息列表
-            output_dir: 输出目录
-        """
-        output_file_path = Path(output_dir) / 'structure_info.md'
-        try:
-            with open(output_file_path, 'w', encoding='utf-8') as outfile:
-                outfile.write('# 结构信息汇总\n\n')
-                outfile.write('| PDB ID | 结构标题 | 实验方法 | 分辨率范围 (Å) | 种属 |\n')
-                outfile.write('| --- | --- | --- | --- | --- |\n')
-                
-                for structure_info in sorted(
-                    structure_info_list,
-                    key=lambda x: x['pdb_id']
-                ):
-                    pdb_id = structure_info['pdb_id']
-                    title = structure_info['title']
-                    method = structure_info['method']
-                    resolution_low = structure_info['resolution_low']
-                    resolution_high = structure_info['resolution_high']
-                    species = structure_info.get('species', '')
-                    
-                    if resolution_low and resolution_high:
-                        resolution = f"{resolution_low} - {resolution_high}"
-                    elif resolution_low:
-                        resolution = resolution_low
-                    elif resolution_high:
-                        resolution = resolution_high
-                    else:
-                        resolution = ""
-                    
-                    outfile.write(f'| {pdb_id} | {title} | {method} | {resolution} | {species} |\n')
-            
-            print(f'结构信息已写入 {output_file_path}')
-        except IOError as e:
-            log_msg = (
-                f"写入结构信息到MD文件失败: {output_file_path} - {e}"
-            )
-            self.logger.log_error(log_msg, self.config.error_log_path)
-            raise
-
     def calculate_similarity_and_rank_pdbs(
         self,
         user_smiles: str,
@@ -732,10 +460,10 @@ class PDBProcessor:
             self.logger.log_error("RDKit库未正确安装，无法计算结构相似性。", self.config.error_log_path)
             return []
 
-        # 读取chemical_components_info.md文件获取配体SMILES信息
-        md_file_path = Path(output_dir) / 'chemical_components_info.md'
-        if not md_file_path.exists():
-            self.logger.log_error(f"配体信息文件 {md_file_path} 不存在，无法获取配体SMILES信息。", self.config.error_log_path)
+        # 读取chemical_components_info.csv文件获取配体SMILES信息
+        csv_file_path = Path(output_dir) / 'chemical_components_info.csv'
+        if not csv_file_path.exists():
+            self.logger.log_error(f"配体信息文件 {csv_file_path} 不存在，无法获取配体SMILES信息。", self.config.error_log_path)
             return []
 
         try:
@@ -748,15 +476,16 @@ class PDBProcessor:
             user_fp = AllChem.GetMorganFingerprintAsBitVect(user_mol, 2, nBits=2048)
 
             # 读取配体信息
+            import csv
             ligand_smiles_dict = {}
-            with open(md_file_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            for line in lines[2:]:  # 跳过表头和分隔线
-                parts = [p.strip() for p in line.strip().split('|') if p.strip()]
-                if len(parts) >= 5 and parts[4]:  # 检查是否有SMILES信息
-                    ligand_id = parts[0]
-                    smiles = parts[4]
-                    ligand_smiles_dict[ligand_id] = smiles
+            with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
+                reader = csv.reader(f)
+                next(reader)  # 跳过表头
+                for row in reader:
+                    if len(row) >= 5 and row[4]:  # 检查是否有SMILES信息
+                        ligand_id = row[0]
+                        smiles = row[4]
+                        ligand_smiles_dict[ligand_id] = smiles
 
             # 读取pdb_ligand.md获取配体-PDB映射
             pdb_ligand_file = Path(output_dir) / 'pdb_ligand.md'
@@ -845,6 +574,9 @@ class PDBProcessor:
         if pdb_ids:
             print(f"为蛋白质 '{protein_name}' 找到 PDB IDs: {', '.join(pdb_ids)}")
             self.download_pdb_files(pdb_ids, output_dir)
+            
+            # 获取结构信息并生成CSV文件
+            self.get_structure_info_from_rcsb(pdb_ids, output_dir)
         else:
             self.logger.log_error(f"未找到蛋白质 '{protein_name}' 对应的PDB ID。", self.config.error_log_path)
             return
@@ -891,16 +623,123 @@ class PDBProcessor:
             )
             self.logger.log_info(log_msg, self.config.info_log_path)
             self.calculate_similarity_and_rank_pdbs(user_smiles, str(output_dir))
-        
-        # 提取结构信息并写入structure_info.md文件
-        structure_info_list = self.extract_structure_info(output_dir)
-        if structure_info_list:
-            self.write_structure_info_to_md(structure_info_list, output_dir)
-
-        # 根据种属进行分类
-        self.move_files_based_on_species(output_dir)
 
         print('\nPDB任务处理完成。')
+
+    def get_structure_info_from_rcsb(self, pdb_ids: List[str], output_dir: Union[str, Path]) -> None:
+        """使用RCSB Data API获取结构信息并生成CSV文件
+
+        Args:
+            pdb_ids: PDB ID列表
+            output_dir: 输出目录
+        """
+        import csv
+        
+        output_dir = Path(output_dir)
+        csv_file = output_dir / 'structure_info.csv'
+        
+        print(f"正在从RCSB获取 {len(pdb_ids)} 个结构的信息...")
+        
+        structure_info_list = []
+        
+        # 批量查询，每次最多50个ID
+        batch_size = 50
+        for i in range(0, len(pdb_ids), batch_size):
+            batch_ids = pdb_ids[i:i + batch_size]
+            
+            try:
+                # 构建查询
+                query = DataQuery(
+                    input_type="entries",
+                    input_ids=batch_ids,
+                    return_data_list=[
+                        "struct.title",
+                        "exptl.method",
+                        "refine.ls_d_res_high",
+                        "refine.ls_d_res_low",
+                        "reflns.d_resolution_high",
+                        "reflns.d_resolution_low",
+                        "rcsb_entry_info.resolution_combined",
+                        "rcsb_entity_source_organism.ncbi_scientific_name"
+                    ],
+                    suppress_autocomplete_warning=True
+                )
+                
+                result = query.exec()
+                
+                # 解析结果
+                if result and 'data' in result and 'entries' in result['data']:
+                    for entry in result['data']['entries']:
+                        pdb_id = entry.get('rcsb_id', '')
+                        
+                        # 提取结构标题
+                        title = ''
+                        if 'struct' in entry and entry['struct']:
+                            title = entry['struct'][0].get('title', '') if isinstance(entry['struct'], list) else entry['struct'].get('title', '')
+                        
+                        # 提取实验方法
+                        method = ''
+                        if 'exptl' in entry and entry['exptl']:
+                            methods = [e.get('method', '') for e in entry['exptl'] if isinstance(e, dict)]
+                            method = ', '.join(set(methods)) if methods else ''
+                        
+                        # 提取分辨率
+                        resolution = ''
+                        # 优先使用 refine 中的分辨率
+                        if 'refine' in entry and entry['refine']:
+                            res_high = entry['refine'][0].get('ls_d_res_high', '') if isinstance(entry['refine'], list) else ''
+                            res_low = entry['refine'][0].get('ls_d_res_low', '') if isinstance(entry['refine'], list) else ''
+                            if res_high and res_low:
+                                resolution = f"{res_low} - {res_high}"
+                            elif res_high:
+                                resolution = str(res_high)
+                        # 如果没有 refine，使用 reflns
+                        elif 'reflns' in entry and entry['reflns']:
+                            res_high = entry['reflns'][0].get('d_resolution_high', '') if isinstance(entry['reflns'], list) else ''
+                            res_low = entry['reflns'][0].get('d_resolution_low', '') if isinstance(entry['reflns'], list) else ''
+                            if res_high and res_low:
+                                resolution = f"{res_low} - {res_high}"
+                            elif res_high:
+                                resolution = str(res_high)
+                        # 最后尝试 rcsb_entry_info.resolution_combined
+                        elif 'rcsb_entry_info' in entry and entry['rcsb_entry_info']:
+                            res_combined = entry['rcsb_entry_info'].get('resolution_combined', [])
+                            if res_combined and isinstance(res_combined, list):
+                                resolution = ', '.join([str(r) for r in res_combined])
+                        
+                        # 提取种属信息
+                        species = ''
+                        if 'rcsb_entity_source_organism' in entry and entry['rcsb_entity_source_organism']:
+                            species_list = []
+                            for org in entry['rcsb_entity_source_organism']:
+                                if isinstance(org, dict) and 'ncbi_scientific_name' in org:
+                                    species_name = org['ncbi_scientific_name']
+                                    if species_name and species_name not in species_list:
+                                        species_list.append(species_name)
+                            species = ', '.join(species_list)
+                        
+                        structure_info_list.append({
+                            'PDB ID': pdb_id,
+                            '结构标题': title,
+                            '实验方法': method,
+                            '分辨率 (Å)': resolution,
+                            '种属': species
+                        })
+                        
+            except Exception as e:
+                self.logger.log_error(f"获取结构信息失败: {e}", self.config.error_log_path)
+                print(f"ERROR: 获取结构信息失败: {e}")
+        
+        # 写入CSV文件
+        if structure_info_list:
+            with open(csv_file, 'w', encoding='utf-8-sig', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=['PDB ID', '结构标题', '实验方法', '分辨率 (Å)', '种属'])
+                writer.writeheader()
+                writer.writerows(structure_info_list)
+            
+            print(f"结构信息已保存到 {csv_file}")
+        else:
+            print("未获取到任何结构信息")
 
     def analyze_pockets(self, folder_path: str, output_dir: str) -> None:
         """对指定文件夹下的PDB或CIF文件进行口袋分析，列出配体周围4.5埃内的氨基酸残基
