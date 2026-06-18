@@ -156,12 +156,6 @@ python pypda.py pdb fetch <protein_name> [output_dir] [--smiles <smiles>]
 # 基本用法：使用蛋白质名称搜索并下载PDB文件
 python pypda.py pdb fetch BRCA1
 
-# 使用基因名称搜索
-python pypda.py pdb fetch TP53
-
-# 使用蛋白质名称搜索
-python pypda.py pdb fetch EGFR
-
 # 高级用法：下载PDB文件并计算结构相似性
 python pypda.py pdb fetch HDAC1 --smiles "CC(=O)N(C)C(=O)N1CCC(CC1)C(C)C"  # 示例SMILES字符串
 ```
@@ -395,11 +389,12 @@ result/
 
 ### PDB处理输出
 
-- **PDB文件**：蛋白质结构文件
+- **CIF文件**：蛋白质结构文件（CIF格式）
 - **配体文件**：提取的配体信息
-- **分类报告**：配体分类结果
-- **结构信息报告**：`structure_info.md`，包含PDB ID、结构标题、实验方法和分辨率范围
-- **结构相似性报告**：当使用`--smile`参数时生成，包含与输入小分子最相似的PDB结构排名
+- **分类报告**：配体分类结果（with_ligand / no_ligand）
+- **结构信息报告**：`structure_info.csv`，包含PDB ID、结构标题、实验方法、分辨率和种属信息
+- **配体化学信息**：`chemical_components_info.csv`，包含配体ID、名称、分子式、分子量和SMILES
+- **结构相似性报告**：当使用`--smiles`参数时生成，包含与输入小分子最相似的PDB结构排名
 
 ## 📁 项目结构
 
@@ -451,14 +446,14 @@ pypda/
 
 - **主要更新**：
   - **版本 0.6.0**：
+    - 使用 rcsb-api 库进行 PDB 搜索和下载
+    - 结构信息报告改为 CSV 格式（structure_info.csv）
+    - 配体化学信息改为 CSV 格式（chemical_components_info.csv）
+    - 删除了按种属分类的功能
     - 新增KEGG信号通路分析功能，支持查询基因参与的信号通路、下载通路图、搜索通路
     - KEGG模块支持JSON和CSV双格式输出，方便数据处理和分析
     - 新增OpenTargets数据查询功能，支持疾病药物查询、靶点药物查询、基因关联疾病查询和疾病关联靶点查询
     - 修复OpenTargets API查询字段问题，将`knownDrugs`更新为`drugAndClinicalCandidates`
-    - 增强种属信息提取功能，支持从多个来源提取种属信息
-    - 重构PDB搜索功能，改用rcsb-api库直接搜索PDB数据库
-    - 优化PDB文件分类逻辑：先根据是否有配体分类到 no_ligand 或 with_ligand 文件夹，再根据种属进行子分类
-    - 添加种属信息提取功能，将种属信息补充到 structure_info.md 文件中
     - 优化文件夹创建逻辑，避免创建空文件夹
 
 ## 📋 依赖库
