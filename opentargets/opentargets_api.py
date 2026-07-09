@@ -45,7 +45,7 @@ class OpenTargetsAPI:
             'Accept': 'application/json',
             'User-Agent': (
                 'PyPDA/0.6.0 '
-                '(https://gitee.com/coding_playground/py-pda; '
+                '(https://github.com/dengzhou5068/PyPDA; '
                 'dengzho5068@foxmail.com)'
             )
         })
