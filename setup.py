@@ -21,7 +21,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Zhou Deng',
     author_email='dengzho5068@foxmail.com',
-    url='https://gitee.com/coding_playground/pypda',
+    url='https://github.com/dengzhou5068/PyPDA',
     packages=find_packages(),
     package_data={
         '': ['exclude_residues.ini'],
@@ -44,7 +44,7 @@ setup(
         'domain prediction', 'sequence analysis'
     ],
     project_urls={
-        'Bug Reports': 'https://gitee.com/coding_playground/pypda/issues',
-        'Source': 'https://gitee.com/coding_playground/pypda',
+        'Bug Reports': 'https://github.com/dengzhou5068/PyPDA/issues',
+        'Source': 'https://github.com/dengzhou5068/PyPDA',
     },
 )
