@@ -43,7 +43,7 @@ class KEGGAPI:
         session.headers.update({
             'User-Agent': (
                 'PyPDA/0.6.0 '
-                '(https://gitee.com/coding_playground/py-pda; '
+                '(https://github.com/dengzhou5068/PyPDA; '
                 'dengzho5068@foxmail.com)'
             )
         })
